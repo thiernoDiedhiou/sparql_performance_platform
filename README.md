@@ -54,7 +54,7 @@ sparql_performance_platform/
 
 ```bash
 # Cloner le repository
-git clone <repository-url>
+git clone https://github.com/thiernoDiedhiou/sparql_performance_platform.git
 cd sparql_performance_platform
 
 # Installer les dépendances
