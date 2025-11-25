@@ -5,6 +5,7 @@ Module de collecte des métriques système
 import psutil
 import time
 from typing import Dict, Any
+from config.settings import METRICS_CPU_INTERVAL
 from utils.helpers import log_message
 
 class MetricsCollector:
@@ -17,15 +18,16 @@ class MetricsCollector:
     def collect_system_metrics(self) -> Dict[str, float]:
         """
         Collecte les métriques système actuelles
-        
+
         Returns:
             Dictionnaire contenant les métriques système
         """
         try:
-            cpu_percent = psutil.cpu_percent(interval=None)
+            # Utiliser interval >= 0.1 pour éviter valeurs incorrectes
+            cpu_percent = psutil.cpu_percent(interval=METRICS_CPU_INTERVAL)
             memory_info = psutil.virtual_memory()
             memory_used_mb = memory_info.used / (1024 * 1024)  # Conversion en MB
-            
+
             return {
                 "cpu": cpu_percent,
                 "memory": memory_used_mb,

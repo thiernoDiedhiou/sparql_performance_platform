@@ -1,0 +1,234 @@
+# ==============================================================================
+# SPARQL Performance Testing Platform - .gitignore
+# ==============================================================================
+
+# ==============================================================================
+# SÉCURITÉ - FICHIERS SENSIBLES (NE JAMAIS COMMITER!)
+# ==============================================================================
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.crt
+secrets/
+credentials/
+
+# ==============================================================================
+# PYTHON
+# ==============================================================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Rope
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# ==============================================================================
+# LOGS ET DONNÉES TEMPORAIRES
+# ==============================================================================
+logs/
+*.log
+log.txt
+*.log.*
+
+# Répertoires temporaires
+temp/
+tmp/
+.tmp/
+
+# ==============================================================================
+# RÉSULTATS ET EXPORTS
+# ==============================================================================
+results/
+exports/
+output/
+*.xlsx
+*.csv
+*.json
+!.env.example
+!requirements.txt
+!config/*.json
+!datasets/**/*.json
+
+# ==============================================================================
+# DATASETS (peuvent être volumineux)
+# ==============================================================================
+datasets/**/*.nt
+datasets/**/*.ttl
+datasets/**/*.rdf
+datasets/**/*.owl
+datasets/**/*.nq
+datasets/**/*.trig
+
+# Garder la structure des dossiers
+!datasets/**/.gitkeep
+
+# ==============================================================================
+# SESSIONS STREAMLIT
+# ==============================================================================
+sessions/
+.streamlit/secrets.toml
+
+# ==============================================================================
+# IDE - EDITEURS
+# ==============================================================================
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ==============================================================================
+# SYSTÈME D'EXPLOITATION
+# ==============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+
+# ==============================================================================
+# DOCKER
+# ==============================================================================
+# Docker volumes (données persistantes)
+docker-volumes/
+.docker/
+
+# ==============================================================================
+# BACKUP ET ARCHIVES
+# ==============================================================================
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+*.gz
+*.zip
+*.tar
+*.7z
+*.rar
+
+# ==============================================================================
+# FICHIERS DE MÉTADONNÉES (générés dynamiquement)
+# ==============================================================================
+datasets_metadata.json
+
+# ==============================================================================
+# AUTRES
+# ==============================================================================
+# Fichiers macOS
+.Spotlight-V100
+.Trashes
+
+# Node modules (si utilisés pour tooling)
+node_modules/
+
+# Fichiers de lock (garder requirements.txt uniquement)
+poetry.lock
+Pipfile.lock
+nul

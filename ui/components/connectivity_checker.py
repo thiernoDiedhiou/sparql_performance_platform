@@ -3,10 +3,11 @@ Composant pour vérifier la connectivité des endpoints SPARQL
 """
 
 import requests
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from core.executor import QueryExecutor
 from config.settings import CONNECTIVITY_TIMEOUT
 from utils.helpers import log_message
+from utils.dataset_manager import DatasetManager
 
 class ConnectivityChecker:
     """Classe pour vérifier la connectivité des endpoints SPARQL"""
@@ -14,34 +15,36 @@ class ConnectivityChecker:
     def __init__(self, timeout: int = CONNECTIVITY_TIMEOUT):
         """
         Initialise le vérificateur de connectivité
-        
+
         Args:
             timeout: Timeout pour les tests de connectivité
         """
         self.timeout = timeout
         self.executor = QueryExecutor(timeout=timeout)
+        self.dataset_manager = DatasetManager(datasets_path="datasets")
     
-    def test_endpoint(self, endpoint_url: str, engine_name: str = "Unknown") -> Dict[str, Any]:
+    def test_endpoint(self, endpoint_url: str, engine_name: str = "Unknown", graph_uri: Optional[str] = None) -> Dict[str, Any]:
         """
         Teste la connectivité d'un endpoint SPARQL
-        
+
         Args:
             endpoint_url: URL de l'endpoint à tester
             engine_name: Nom du moteur pour les logs
-            
+            graph_uri: URI du graphe à utiliser pour le comptage (optionnel)
+
         Returns:
             Dictionnaire contenant le statut de connectivité
         """
         log_message(f"Test de connectivité pour {engine_name}: {endpoint_url}")
-        
+
         try:
             # Test basique avec une requête simple
             connectivity_result = self.executor.test_connectivity(endpoint_url)
-            
+
             if connectivity_result["status"] == "online":
-                # Test plus approfondi avec comptage
-                detailed_result = self._test_detailed_connectivity(endpoint_url)
-                
+                # Test plus approfondi avec comptage (avec support graphe nommé)
+                detailed_result = self._test_detailed_connectivity(endpoint_url, graph_uri)
+
                 return {
                     "status": "online",
                     "message": f"✅ En ligne ({detailed_result['result_info']})",
@@ -53,44 +56,51 @@ class ConnectivityChecker:
                 }
             else:
                 return connectivity_result
-                
+
         except Exception as e:
             error_msg = str(e)
             log_message(f"Erreur de connectivité pour {engine_name}: {error_msg}", "error")
-            
+
             return {
                 "status": "error",
                 "message": f"❌ Erreur: {error_msg}",
                 "details": {"error": error_msg}
             }
     
-    def _test_detailed_connectivity(self, endpoint_url: str) -> Dict[str, Any]:
+    def _test_detailed_connectivity(self, endpoint_url: str, graph_uri: Optional[str] = None) -> Dict[str, Any]:
         """
         Effectue un test de connectivité détaillé
-        
+
         Args:
             endpoint_url: URL de l'endpoint
-            
+            graph_uri: URI du graphe pour le comptage (optionnel)
+
         Returns:
             Dictionnaire avec les détails du test
         """
         import time
-        
-        # Requête pour compter les triplets
-        count_query = """
-        SELECT (COUNT(*) AS ?count)
-        WHERE {
-            ?s ?p ?o .
-        }
-        """
-        
+
+        # Requête pour compter les triplets (avec support graphe nommé)
+        if graph_uri:
+            count_query = f"""
+            SELECT (COUNT(*) AS ?count)
+            WHERE {{
+                GRAPH <{graph_uri}> {{
+                    ?s ?p ?o .
+                }}
+            }}
+            """
+        else:
+            # Compter uniquement le graphe par défaut
+            count_query = "SELECT (COUNT(*) AS ?count) WHERE { ?s ?p ?o . }"
+
         try:
             start_time = time.time()
             result = self.executor.execute_query(endpoint_url, count_query)
             end_time = time.time()
-            
+
             response_time = (end_time - start_time) * 1000  # en millisecondes
-            
+
             if result["success"] and result["results"]:
                 bindings = result["results"].get("results", {}).get("bindings", [])
                 if bindings:
@@ -100,13 +110,13 @@ class ConnectivityChecker:
                         "response_time": f"{response_time:.2f}ms",
                         "triple_count": count
                     }
-            
+
             return {
                 "result_info": "Endpoint accessible",
                 "response_time": f"{response_time:.2f}ms",
                 "triple_count": "N/A"
             }
-            
+
         except Exception as e:
             return {
                 "result_info": "Test basique réussi",

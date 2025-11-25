@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # Virtuoso SPARQL Engine
+  virtuoso:
+    image: tenforce/virtuoso:1.3.2-virtuoso7.2.5
+    container_name: sparql_virtuoso
+    ports:
+      - "8890:8890"      # SPARQL endpoint
+      - "1111:1111"      # ISQL port
+    environment:
+      - DBA_PASSWORD=dba
+      - SPARQL_UPDATE=true
+      - DEFAULT_GRAPH=http://www.example.org/default
+    volumes:
+      - virtuoso_data:/data
+    networks:
+      - sparql_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8890/sparql"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Jena Fuseki SPARQL Engine
+  fuseki:
+    image: stain/jena-fuseki:latest
+    container_name: sparql_fuseki
+    ports:
+      - "3030:3030"      # Fuseki UI and SPARQL endpoint
+    environment:
+      - ADMIN_PASSWORD=admin
+      - JVM_ARGS=-Xmx2g
+    volumes:
+      - fuseki_data:/fuseki
+    networks:
+      - sparql_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3030/$/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Streamlit Application (optionnel)
+  streamlit_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sparql_streamlit
+    ports:
+      - "8501:8501"      # Streamlit web interface
+    environment:
+      - VIRTUOSO_ENDPOINT=http://virtuoso:8890/sparql
+      - FUSEKI_ENDPOINT=http://fuseki:3030/dataset/query
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./logs:/app/logs
+      - ./results:/app/results
+    networks:
+      - sparql_network
+    depends_on:
+      virtuoso:
+        condition: service_healthy
+      fuseki:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  virtuoso_data:
+    driver: local
+  fuseki_data:
+    driver: local
+
+networks:
+  sparql_network:
+    driver: bridge

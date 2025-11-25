@@ -57,15 +57,20 @@ class SPARQLQueryCatalog:
     def get_available_categories(self, dataset_type: str) -> list:
         """
         Récupère les catégories disponibles pour un type de dataset
-        
+
         Args:
             dataset_type: Type de jeu de données
-            
+
         Returns:
             Liste des catégories disponibles
         """
-        categories = ["simple", "jointure", "aggregation", "filtre", "optional", "subquery"]
-        return categories
+        # Déléguer à la classe de requêtes appropriée
+        if dataset_type == "LUBM":
+            return self.lubm_queries.get_available_categories()
+        elif dataset_type == "DBpedia":
+            return self.dbpedia_queries.get_available_categories()
+        else:
+            return self.generic_queries.get_available_categories()
     
     def validate_query(self, query: str) -> Dict[str, bool]:
         """
@@ -93,20 +98,22 @@ class SPARQLQueryCatalog:
     def get_query_complexity_estimate(self, query: str) -> Dict[str, any]:
         """
         Estime la complexité d'une requête SPARQL
-        
+
         Args:
             query: Requête SPARQL à analyser
-            
+
         Returns:
             Dictionnaire contenant l'estimation de complexité
         """
         query_upper = query.upper()
-        
+
         complexity_score = 0
         complexity_factors = []
-        
-        # Facteurs de complexité
-        if "JOIN" in query_upper or query.count("?") > 10:
+
+        # Détection de jointures implicites (patterns multiples avec variables communes)
+        # Compter le nombre de triple patterns (approximation via les points)
+        triple_pattern_count = query.count(" .") + query.count(".\n")
+        if triple_pattern_count > 5 or query.count("?") > 10:
             complexity_score += 2
             complexity_factors.append("Jointures multiples")
         

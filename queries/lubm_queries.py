@@ -3,17 +3,18 @@ Requêtes SPARQL spécifiques au benchmark LUBM
 """
 
 from typing import Dict
+from queries.base_queries import BaseQueries
 
-class LUBMQueries:
+
+class LUBMQueries(BaseQueries):
     """Classe contenant toutes les requêtes SPARQL pour le benchmark LUBM"""
-    
+
     def __init__(self):
         """Initialise les requêtes LUBM"""
-        self.prefix = """
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            PREFIX ub: <http://www.lehigh.edu/~zhp2/2004/0401/univ-bench.owl#>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-        """
+        super().__init__()
+        self.prefix = """PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX ub: <http://www.lehigh.edu/~zhp2/2004/0401/univ-bench.owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>"""
     
     def get_simple_queries(self) -> Dict[str, str]:
         """Retourne les requêtes simples LUBM"""
@@ -263,36 +264,3 @@ class LUBMQueries:
             """
         }
     
-    def get_queries_by_category(self, category: str) -> Dict[str, str]:
-        """
-        Retourne les requêtes d'une catégorie spécifique
-        
-        Args:
-            category: Catégorie de requêtes demandée
-            
-        Returns:
-            Dictionnaire des requêtes de la catégorie
-        """
-        category_map = {
-            "simple": self.get_simple_queries(),
-            "jointure": self.get_join_queries(),
-            "aggregation": self.get_aggregation_queries(),
-            "filtre": self.get_filter_queries(),
-            "optional": self.get_optional_queries(),
-            "subquery": self.get_subquery_queries()
-        }
-        
-        return category_map.get(category.lower(), {})
-    
-    def get_all_queries(self) -> Dict[str, str]:
-        """Retourne toutes les requêtes LUBM"""
-        all_queries = {}
-        
-        all_queries.update(self.get_simple_queries())
-        all_queries.update(self.get_join_queries())
-        all_queries.update(self.get_aggregation_queries())
-        all_queries.update(self.get_filter_queries())
-        all_queries.update(self.get_optional_queries())
-        all_queries.update(self.get_subquery_queries())
-        
-        return all_queries

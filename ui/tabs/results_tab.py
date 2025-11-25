@@ -6,21 +6,42 @@ import streamlit as st
 import pandas as pd
 from utils.data_manager import get_test_results, is_test_completed
 from visualization.visualizer import ResultVisualizer
-from utils.helpers import format_duration, create_benchmark_summary
+from utils.helpers import (
+    format_duration,
+    create_benchmark_summary,
+    validate_results_schema,
+    compute_summary_stats,
+    compute_extreme_performances,
+    filter_results_cached,
+    handle_visualization_errors
+)
+from config.settings import UI_MAX_ROWS_OPTIONS, UI_DEFAULT_MAX_ROWS, UI_TOP_N_EXTREME
 
+@handle_visualization_errors(default_return=None, show_error=True)
 def render_results_tab():
     """Affiche l'onglet des résultats"""
     st.header("Résultats des tests")
-    
+
     if not is_test_completed():
         st.info("ℹ️ Aucun test n'a encore été exécuté. Allez dans l'onglet 'Configuration et tests' pour lancer les tests.")
         return
-    
+
     results_df = get_test_results()
-    
+
     if results_df is None or results_df.empty:
         st.warning("⚠️ Aucun résultat disponible.")
         return
+
+    # Validation du schéma des données
+    validation = validate_results_schema(results_df)
+    if not validation["valid"]:
+        st.error(f"❌ Données invalides: {', '.join(validation['errors'])}")
+        return
+
+    if validation["warnings"]:
+        with st.expander("⚠️ Avertissements de validation"):
+            for warning in validation["warnings"]:
+                st.warning(warning)
     
     # Résumé exécutif
     render_executive_summary(results_df)
@@ -51,7 +72,7 @@ def render_executive_summary(results_df: pd.DataFrame):
     Args:
         results_df: DataFrame des résultats
     """
-    st.subheader("📊 Résumé exécutif")
+    st.subheader("Résumé exécutif")
     
     # Métriques principales
     col1, col2, col3, col4 = st.columns(4)
@@ -82,7 +103,7 @@ def render_executive_summary(results_df: pd.DataFrame):
         st.metric("Taux de succès", f"{success_rate:.1f}%")
     
     # Performance globale
-    st.subheader("🎯 Performance globale")
+    st.subheader("Performance globale")
     
     col1, col2, col3 = st.columns(3)
     
@@ -103,7 +124,7 @@ def render_executive_summary(results_df: pd.DataFrame):
     
     # Comparaison par moteur
     if 'engine' in results_df.columns and 'execution_time' in results_df.columns:
-        st.subheader("⚖️ Comparaison par moteur")
+        st.subheader("Comparaison par moteur")
         
         engine_comparison = results_df.groupby('engine').agg({
             'execution_time': ['mean', 'count'],
@@ -117,46 +138,49 @@ def render_executive_summary(results_df: pd.DataFrame):
         
         # Recommandation rapide
         best_engine = engine_comparison['Temps moyen (s)'].idxmin()
-        st.success(f"🏆 **Moteur le plus performant:** {best_engine}")
+        st.success(f"**Moteur le plus performant:** {best_engine}")
 
+@handle_visualization_errors(default_return=pd.DataFrame(), show_error=True)
 def render_results_filters(results_df: pd.DataFrame) -> pd.DataFrame:
     """
     Affiche les filtres pour les résultats et retourne les données filtrées
-    
+
     Args:
         results_df: DataFrame des résultats
-        
+
     Returns:
         DataFrame filtré
     """
-    st.subheader("🔍 Filtrage des résultats")
-    
+    st.subheader("Filtrage des résultats")
+
     col1, col2, col3 = st.columns(3)
-    
+
+    engine_filter = []
+    query_filter = []
+    success_only = False
+
     with col1:
         # Filtre par moteur
-        engine_filter = []
         if 'engine' in results_df.columns:
-            engines = results_df['engine'].unique()
+            engines = list(results_df['engine'].unique())
             engine_filter = st.multiselect(
                 "Moteur SPARQL",
                 options=engines,
                 default=engines,
                 help="Sélectionnez les moteurs à afficher"
             )
-    
+
     with col2:
         # Filtre par requête
-        query_filter = []
         if 'query_name' in results_df.columns:
-            queries = results_df['query_name'].unique()
+            queries = list(results_df['query_name'].unique())
             query_filter = st.multiselect(
                 "Requête",
                 options=queries,
                 default=queries,
                 help="Sélectionnez les requêtes à afficher"
             )
-    
+
     with col3:
         # Filtre par statut de succès
         success_filter = st.radio(
@@ -165,24 +189,29 @@ def render_results_filters(results_df: pd.DataFrame) -> pd.DataFrame:
             index=0,
             help="Filtrer par statut d'exécution"
         )
-    
-    # Application des filtres
-    filtered_df = results_df.copy()
-    
-    if engine_filter:
-        filtered_df = filtered_df[filtered_df['engine'].isin(engine_filter)]
-    
-    if query_filter:
-        filtered_df = filtered_df[filtered_df['query_name'].isin(query_filter)]
-    
+
+    # Déterminer le mode de filtrage de succès
     if success_filter == "Succès seulement":
-        filtered_df = filtered_df[filtered_df['success'] == True]
+        success_only = True
     elif success_filter == "Échecs seulement":
+        # Gérer ce cas séparément car filter_results_cached ne le supporte pas directement
+        success_only = False
+
+    # Utilisation de la fonction cachée pour le filtrage
+    filtered_df = filter_results_cached(
+        results_df,
+        engine_filter=engine_filter,
+        query_filter=query_filter,
+        success_only=success_only
+    )
+
+    # Filtrer les échecs si nécessaire
+    if success_filter == "Échecs seulement" and 'success' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['success'] == False]
-    
+
     # Affichage du nombre de résultats après filtrage
-    st.info(f"📈 {len(filtered_df)} résultats affichés (sur {len(results_df)} au total)")
-    
+    st.info(f"{len(filtered_df)} résultats affichés (sur {len(results_df)} au total)")
+
     return filtered_df
 
 def render_summary_table(filtered_df: pd.DataFrame):
@@ -235,7 +264,7 @@ def render_detailed_results(filtered_df: pd.DataFrame):
     with col2:
         max_rows = st.selectbox(
             "Nombre de lignes à afficher",
-            options=[50, 100, 200, 500, "Toutes"],
+            options=UI_MAX_ROWS_OPTIONS,
             index=0
         )
     
@@ -283,12 +312,12 @@ def render_performance_statistics(filtered_df: pd.DataFrame):
     Args:
         filtered_df: DataFrame filtré des résultats
     """
-    st.subheader("📊 Statistiques de performance")
+    st.subheader("Statistiques de performance")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.write("**⏱️ Temps d'exécution (secondes)**")
+        st.write("**Temps d'exécution (secondes)**")
         if 'execution_time' in filtered_df.columns:
             execution_stats = filtered_df.groupby(['query_name', 'engine'])['execution_time'].describe()
             st.dataframe(execution_stats.round(4), use_container_width=True)
@@ -296,7 +325,7 @@ def render_performance_statistics(filtered_df: pd.DataFrame):
             st.info("Données de temps d'exécution non disponibles")
     
     with col2:
-        st.write("**💻 Utilisation des ressources**")
+        st.write("**Utilisation des ressources**")
         if all(col in filtered_df.columns for col in ['cpu_usage', 'memory_usage']):
             resource_stats = filtered_df.groupby(['query_name', 'engine']).agg({
                 'cpu_usage': ['mean', 'max'],
@@ -308,50 +337,52 @@ def render_performance_statistics(filtered_df: pd.DataFrame):
         else:
             st.info("Données de ressources non disponibles")
 
+@handle_visualization_errors(default_return=None, show_error=True)
 def render_extreme_performances(filtered_df: pd.DataFrame):
     """
     Affiche les performances extrêmes (meilleures et pires)
-    
+
     Args:
         filtered_df: DataFrame filtré des résultats
     """
     st.subheader("🏁 Performances extrêmes")
-    
+
     if 'execution_time' not in filtered_df.columns:
         st.info("Données de temps d'exécution non disponibles")
         return
-    
+
+    # Utilisation de la fonction cachée
+    extreme_perfs = compute_extreme_performances(filtered_df, top_n=UI_TOP_N_EXTREME)
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
-        st.write("**🚀 Top 5 des exécutions les plus rapides**")
-        fastest = filtered_df.nsmallest(5, 'execution_time')[
-            ['engine', 'query_name', 'execution_time', 'iteration']
-        ].copy()
-        
+        st.write(f"**🚀 Top {UI_TOP_N_EXTREME} des exécutions les plus rapides**")
+        fastest = extreme_perfs["fastest"]
+
         if not fastest.empty:
+            fastest = fastest.copy()
             fastest['execution_time'] = fastest['execution_time'].apply(format_duration)
-            fastest.columns = ['Moteur', 'Requête', 'Temps', 'Itération']
+            fastest.columns = ['Moteur', 'Requête', 'Temps', 'Itération'] if len(fastest.columns) == 4 else fastest.columns
             st.dataframe(fastest, use_container_width=True, hide_index=True)
         else:
             st.info("Aucune donnée disponible")
-    
+
     with col2:
-        st.write("**🐌 Top 5 des exécutions les plus lentes**")
-        slowest = filtered_df.nlargest(5, 'execution_time')[
-            ['engine', 'query_name', 'execution_time', 'iteration']
-        ].copy()
-        
+        st.write(f"**🐌 Top {UI_TOP_N_EXTREME} des exécutions les plus lentes**")
+        slowest = extreme_perfs["slowest"]
+
         if not slowest.empty:
+            slowest = slowest.copy()
             slowest['execution_time'] = slowest['execution_time'].apply(format_duration)
-            slowest.columns = ['Moteur', 'Requête', 'Temps', 'Itération']
+            slowest.columns = ['Moteur', 'Requête', 'Temps', 'Itération'] if len(slowest.columns) == 4 else slowest.columns
             st.dataframe(slowest, use_container_width=True, hide_index=True)
         else:
             st.info("Aucune donnée disponible")
     
     # Analyse des écarts de performance
     if 'query_name' in filtered_df.columns and 'engine' in filtered_df.columns:
-        st.subheader("📈 Analyse des écarts de performance")
+        st.subheader("Analyse des écarts de performance")
         
         # Calcul des ratios de performance entre moteurs
         try:

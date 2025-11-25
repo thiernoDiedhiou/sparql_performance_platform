@@ -1,0 +1,66 @@
+# ========================================================================
+# SPARQL Performance Platform - Configuration Streamlit
+# Thème personnalisé pour une meilleure expérience utilisateur
+# ========================================================================
+
+[theme]
+# Thème de base (light ou dark)
+base = "light"
+
+# Couleur primaire - Utilisée pour les boutons principaux et accents
+# Bleu professionnel pour une application scientifique
+primaryColor = "#1f77b4"
+
+# Couleur de fond principale
+# Blanc légèrement teinté pour réduire la fatigue visuelle
+backgroundColor = "#f8f9fa"
+
+# Couleur de fond secondaire (sidebar, cards, etc.)
+# Gris très clair pour une bonne hiérarchie visuelle
+secondaryBackgroundColor = "#e9ecef"
+
+# Couleur du texte
+# Gris foncé pour un bon contraste sans être trop agressif
+textColor = "#212529"
+
+# Police de caractères
+# System UI pour une apparence native sur chaque plateforme
+font = "sans serif"
+
+[server]
+# Port par défaut
+port = 8501
+
+# Mode de développement
+headless = false
+
+# Taille maximale des fichiers uploadés (en MB)
+maxUploadSize = 200
+
+[browser]
+# Lancer automatiquement le navigateur au démarrage
+gatherUsageStats = false
+
+# Titre de la page (apparaît dans l'onglet du navigateur)
+serverAddress = "localhost"
+
+[runner]
+# Exécution automatique lors de changements de fichiers
+magicEnabled = true
+
+# Cache des résultats
+fastReruns = true
+
+[client]
+# Afficher les erreurs détaillées
+showErrorDetails = true
+
+# Barre d'outils de développement
+toolbarMode = "auto"
+
+[logger]
+# Niveau de log
+level = "info"
+
+# Format des messages de log
+messageFormat = "%(asctime)s %(levelname)s: %(message)s"

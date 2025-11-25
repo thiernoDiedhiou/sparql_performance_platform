@@ -3,19 +3,20 @@ Requêtes SPARQL spécifiques au jeu de données DBpedia
 """
 
 from typing import Dict
+from queries.base_queries import BaseQueries
 
-class DBpediaQueries:
+
+class DBpediaQueries(BaseQueries):
     """Classe contenant toutes les requêtes SPARQL pour DBpedia"""
-    
+
     def __init__(self):
         """Initialise les requêtes DBpedia"""
-        self.prefix = """
-            PREFIX dbo: <http://dbpedia.org/ontology/>
-            PREFIX dbp: <http://dbpedia.org/property/>
-            PREFIX dbr: <http://dbpedia.org/resource/>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        """
+        super().__init__()
+        self.prefix = """PREFIX dbo: <http://dbpedia.org/ontology/>
+PREFIX dbp: <http://dbpedia.org/property/>
+PREFIX dbr: <http://dbpedia.org/resource/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>"""
     
     def get_simple_queries(self) -> Dict[str, str]:
         """Retourne les requêtes simples DBpedia"""
@@ -315,36 +316,3 @@ class DBpediaQueries:
             """
         }
     
-    def get_queries_by_category(self, category: str) -> Dict[str, str]:
-        """
-        Retourne les requêtes d'une catégorie spécifique
-        
-        Args:
-            category: Catégorie de requêtes demandée
-            
-        Returns:
-            Dictionnaire des requêtes de la catégorie
-        """
-        category_map = {
-            "simple": self.get_simple_queries(),
-            "jointure": self.get_join_queries(),
-            "aggregation": self.get_aggregation_queries(),
-            "filtre": self.get_filter_queries(),
-            "optional": self.get_optional_queries(),
-            "subquery": self.get_subquery_queries()
-        }
-        
-        return category_map.get(category.lower(), {})
-    
-    def get_all_queries(self) -> Dict[str, str]:
-        """Retourne toutes les requêtes DBpedia"""
-        all_queries = {}
-        
-        all_queries.update(self.get_simple_queries())
-        all_queries.update(self.get_join_queries())
-        all_queries.update(self.get_aggregation_queries())
-        all_queries.update(self.get_filter_queries())
-        all_queries.update(self.get_optional_queries())
-        all_queries.update(self.get_subquery_queries())
-        
-        return all_queries

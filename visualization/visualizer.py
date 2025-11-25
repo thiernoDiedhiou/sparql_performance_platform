@@ -6,7 +6,29 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from typing import Optional
+from functools import wraps
 from utils.helpers import log_message
+from config.settings import UI_CHART_HEIGHT, UI_CHART_HEIGHT_LARGE
+
+def safe_visualization(func):
+    """
+    Décorateur pour gérer les erreurs dans les méthodes de visualisation
+
+    Args:
+        func: Fonction à décorer
+
+    Returns:
+        Fonction décorée avec gestion d'erreurs
+    """
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except Exception as e:
+            error_msg = f"Erreur dans {func.__name__}: {str(e)}"
+            log_message(error_msg, "error")
+            return self._create_error_figure(error_msg)
+    return wrapper
 
 class ResultVisualizer:
     """Classe principale pour la visualisation des résultats"""
@@ -20,206 +42,211 @@ class ResultVisualizer:
             'concurrent_fuseki': '#d62728'
         }
     
+    @safe_visualization
     def plot_execution_times(self, df: pd.DataFrame, query_name: Optional[str] = None) -> go.Figure:
         """
         Visualise les temps d'exécution pour une ou toutes les requêtes
-        
+
         Args:
             df: DataFrame contenant les résultats
             query_name: Nom de la requête spécifique (optionnel)
-            
+
         Returns:
             Figure Plotly
         """
-        try:
-            if query_name and query_name != "Toutes les requêtes":
-                plot_df = df[df['query_name'] == query_name]
-                title = f"Temps d'exécution pour: {query_name}"
-                x_axis = 'engine'
-            else:
-                plot_df = df.groupby(['query_name', 'engine'])['execution_time'].mean().reset_index()
-                title = "Temps d'exécution moyen par requête et moteur"
-                x_axis = 'query_name'
-            
-            fig = px.bar(
-                plot_df,
-                x=x_axis,
-                y='execution_time',
-                color='engine',
-                title=title,
-                labels={
-                    'execution_time': 'Temps d\'exécution (s)',
-                    'query_name': 'Requête',
-                    'engine': 'Moteur'
-                },
-                barmode='group',
-                color_discrete_map=self._get_color_mapping(plot_df['engine'].unique())
-            )
-            
-            fig.update_layout(
-                xaxis_title="Requête" if x_axis == 'query_name' else "Moteur",
-                yaxis_title="Temps d'exécution (secondes)",
-                legend_title="Moteur SPARQL",
-                template="plotly_white"
-            )
-            
-            # Rotation des labels pour une meilleure lisibilité
-            if x_axis == 'query_name':
-                fig.update_xaxes(tickangle=45)
-            
-            return fig
-            
-        except Exception as e:
-            log_message(f"Erreur lors de la création du graphique d'exécution: {str(e)}")
-            return self._create_error_figure("Erreur lors de la création du graphique")
+        if query_name and query_name != "Toutes les requêtes":
+            plot_df = df[df['query_name'] == query_name]
+            title = f"Temps d'exécution pour: {query_name}"
+            x_axis = 'engine'
+        else:
+            plot_df = df.groupby(['query_name', 'engine'])['execution_time'].mean().reset_index()
+            title = "Temps d'exécution moyen par requête et moteur"
+            x_axis = 'query_name'
+
+        fig = px.bar(
+            plot_df,
+            x=x_axis,
+            y='execution_time',
+            color='engine',
+            title=title,
+            labels={
+                'execution_time': 'Temps d\'exécution (s)',
+                'query_name': 'Requête',
+                'engine': 'Moteur'
+            },
+            barmode='group',
+            color_discrete_map=self._get_color_mapping(plot_df['engine'].unique()),
+            height=UI_CHART_HEIGHT
+        )
+
+        fig.update_layout(
+            xaxis_title="Requête" if x_axis == 'query_name' else "Moteur",
+            yaxis_title="Temps d'exécution (secondes)",
+            legend_title="Moteur SPARQL",
+            template="plotly_white"
+        )
+
+        # Rotation des labels pour une meilleure lisibilité
+        if x_axis == 'query_name':
+            fig.update_xaxes(tickangle=45)
+
+        return fig
     
+    @safe_visualization
     def plot_resource_usage(self, df: pd.DataFrame, resource_type: str) -> go.Figure:
         """
         Visualise l'utilisation des ressources (CPU ou mémoire)
-        
+
         Args:
             df: DataFrame contenant les résultats
             resource_type: Type de ressource ('cpu' ou 'memory')
-            
+
         Returns:
             Figure Plotly
         """
-        try:
-            if resource_type == 'cpu':
-                y_col = 'cpu_usage'
-                title = "Utilisation CPU par moteur et requête"
-                y_label = "Utilisation CPU (%)"
-            else:  # memory
-                y_col = 'memory_usage'
-                title = "Utilisation mémoire par moteur et requête"
-                y_label = "Utilisation mémoire (MB)"
-            
-            plot_df = df.groupby(['query_name', 'engine'])[y_col].mean().reset_index()
-            
-            fig = px.bar(
-                plot_df,
-                x='query_name',
-                y=y_col,
-                color='engine',
-                title=title,
-                labels={
-                    'query_name': 'Requête',
-                    'engine': 'Moteur',
-                    y_col: y_label
-                },
-                barmode='group',
-                color_discrete_map=self._get_color_mapping(plot_df['engine'].unique())
-            )
-            
-            fig.update_layout(
-                xaxis_title="Requête",
-                yaxis_title=y_label,
-                legend_title="Moteur SPARQL",
-                template="plotly_white"
-            )
-            
-            fig.update_xaxes(tickangle=45)
-            
-            return fig
-            
-        except Exception as e:
-            log_message(f"Erreur lors de la création du graphique de ressources: {str(e)}")
-            return self._create_error_figure("Erreur lors de la création du graphique")
+        if resource_type == 'cpu':
+            y_col = 'cpu_usage'
+            title = "Utilisation CPU par moteur et requête"
+            y_label = "Utilisation CPU (%)"
+        else:  # memory
+            y_col = 'memory_usage'
+            title = "Utilisation mémoire par moteur et requête"
+            y_label = "Utilisation mémoire (MB)"
+
+        plot_df = df.groupby(['query_name', 'engine'])[y_col].mean().reset_index()
+
+        fig = px.bar(
+            plot_df,
+            x='query_name',
+            y=y_col,
+            color='engine',
+            title=title,
+            labels={
+                'query_name': 'Requête',
+                'engine': 'Moteur',
+                y_col: y_label
+            },
+            barmode='group',
+            color_discrete_map=self._get_color_mapping(plot_df['engine'].unique()),
+            height=UI_CHART_HEIGHT
+        )
+
+        fig.update_layout(
+            xaxis_title="Requête",
+            yaxis_title=y_label,
+            legend_title="Moteur SPARQL",
+            template="plotly_white"
+        )
+
+        fig.update_xaxes(tickangle=45)
+
+        return fig
     
+    @safe_visualization
     def plot_scatter_comparison(self, df: pd.DataFrame) -> go.Figure:
         """
         Crée un graphique de dispersion pour comparer les performances
-        
+
         Args:
             df: DataFrame contenant les résultats
-            
+
         Returns:
             Figure Plotly
         """
-        try:
-            virtuoso_data = df[df['engine'].str.contains('Virtuoso')].groupby('query_name')['execution_time'].mean()
-            fuseki_data = df[df['engine'].str.contains('Fuseki')].groupby('query_name')['execution_time'].mean()
-            
-            # Fusionner les données des deux moteurs
-            comparison_df = pd.DataFrame({
-                'query_name': virtuoso_data.index,
-                'Virtuoso': virtuoso_data.values,
-                'Jena Fuseki': fuseki_data.values
-            })
-            
-            fig = px.scatter(
-                comparison_df,
-                x='Virtuoso',
-                y='Jena Fuseki',
-                hover_name='query_name',
-                title='Comparaison des temps d\'exécution: Virtuoso vs Jena Fuseki',
-                labels={
-                    'Virtuoso': 'Temps Virtuoso (s)',
-                    'Jena Fuseki': 'Temps Jena Fuseki (s)'
-                }
+        virtuoso_data = df[df['engine'].str.contains('Virtuoso')].groupby('query_name')['execution_time'].mean()
+        fuseki_data = df[df['engine'].str.contains('Fuseki')].groupby('query_name')['execution_time'].mean()
+
+        # Fusionner les données des deux moteurs
+        comparison_df = pd.DataFrame({
+            'query_name': virtuoso_data.index,
+            'Virtuoso': virtuoso_data.values,
+            'Jena Fuseki': fuseki_data.values
+        })
+
+        fig = px.scatter(
+            comparison_df,
+            x='Virtuoso',
+            y='Jena Fuseki',
+            hover_name='query_name',
+            title='Comparaison des temps d\'exécution: Virtuoso vs Jena Fuseki',
+            labels={
+                'Virtuoso': 'Temps Virtuoso (s)',
+                'Jena Fuseki': 'Temps Jena Fuseki (s)'
+            },
+            height=UI_CHART_HEIGHT
+        )
+
+        # Ajouter une ligne diagonale pour référence (x=y)
+        max_val = max(df['execution_time'].max(), 0.1)
+        fig.add_trace(go.Scatter(
+            x=[0, max_val],
+            y=[0, max_val],
+            mode='lines',
+            line=dict(dash='dash', color='gray'),
+            name='Performances égales',
+            showlegend=True
+        ))
+
+        fig.update_layout(
+            template="plotly_white",
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
             )
-            
-            # Ajouter une ligne diagonale pour référence (x=y)
-            max_val = max(df['execution_time'].max(), 0.1)
-            fig.add_trace(go.Scatter(
-                x=[0, max_val],
-                y=[0, max_val],
-                mode='lines',
-                line=dict(dash='dash', color='gray'),
-                name='Performances égales',
-                showlegend=True
-            ))
-            
-            fig.update_layout(
-                template="plotly_white",
-                legend=dict(
-                    yanchor="top",
-                    y=0.99,
-                    xanchor="left",
-                    x=0.01
-                )
-            )
-            
-            return fig
-            
-        except Exception as e:
-            log_message(f"Erreur lors de la création du graphique de comparaison: {str(e)}")
-            return self._create_error_figure("Erreur lors de la création du graphique")
+        )
+
+        return fig
     
-    def plot_performance_trends(self, df: pd.DataFrame) -> go.Figure:
+    def plot_performance_trends(self, df: pd.DataFrame, max_queries: int = 12) -> go.Figure:
         """
         Crée un graphique des tendances de performance par itération
-        
+
         Args:
             df: DataFrame contenant les résultats
-            
+            max_queries: Nombre maximum de requêtes à afficher (défaut: 12 pour lisibilité)
+
         Returns:
             Figure Plotly
         """
         try:
+            # Limiter le nombre de requêtes pour améliorer la lisibilité
+            unique_queries = df['query_name'].unique()
+
+            if len(unique_queries) > max_queries:
+                # Sélectionner les requêtes les plus longues
+                top_queries = df.groupby('query_name')['execution_time'].mean().nlargest(max_queries).index
+                plot_df = df[df['query_name'].isin(top_queries)]
+                title = f'Tendances de performance par itération (Top {max_queries} requêtes les plus longues)'
+            else:
+                plot_df = df
+                title = 'Tendances de performance par itération'
+
             fig = px.line(
-                df,
+                plot_df,
                 x='iteration',
                 y='execution_time',
                 color='engine',
                 facet_col='query_name',
                 facet_col_wrap=3,
-                title='Tendances de performance par itération',
+                title=title,
                 labels={
                     'iteration': 'Itération',
                     'execution_time': 'Temps d\'exécution (s)',
                     'engine': 'Moteur'
                 },
-                color_discrete_map=self._get_color_mapping(df['engine'].unique())
+                color_discrete_map=self._get_color_mapping(plot_df['engine'].unique())
             )
-            
+
             fig.update_layout(
                 template="plotly_white",
-                showlegend=True
+                showlegend=True,
+                height=400 * ((len(plot_df['query_name'].unique()) - 1) // 3 + 1)  # Ajuster hauteur dynamiquement
             )
-            
+
             return fig
-            
+
         except Exception as e:
             log_message(f"Erreur lors de la création du graphique de tendances: {str(e)}")
             return self._create_error_figure("Erreur lors de la création du graphique")
@@ -415,3 +442,198 @@ class ResultVisualizer:
         except Exception as e:
             log_message(f"Erreur lors de la génération des insights: {str(e)}")
             return {"error": "Impossible de générer les insights"}
+
+    def plot_boxplot(self, df: pd.DataFrame) -> go.Figure:
+        """
+        Crée un box plot pour visualiser la distribution des temps d'exécution
+
+        Args:
+            df: DataFrame contenant les résultats
+
+        Returns:
+            Figure Plotly
+        """
+        try:
+            fig = px.box(
+                df,
+                x='engine',
+                y='execution_time',
+                color='engine',
+                points='all',  # Afficher tous les points individuels
+                title='Distribution des temps d\'exécution (Box Plot)',
+                labels={
+                    'execution_time': 'Temps d\'exécution (s)',
+                    'engine': 'Moteur SPARQL'
+                },
+                color_discrete_map=self._get_color_mapping(df['engine'].unique())
+            )
+
+            fig.update_layout(
+                template="plotly_white",
+                showlegend=True,
+                yaxis_title="Temps d'exécution (secondes)",
+                xaxis_title="Moteur"
+            )
+
+            return fig
+
+        except Exception as e:
+            log_message(f"Erreur lors de la création du box plot: {str(e)}")
+            return self._create_error_figure("Erreur lors de la création du box plot")
+
+    def plot_violin(self, df: pd.DataFrame) -> go.Figure:
+        """
+        Crée un violin plot pour visualiser la densité de probabilité
+
+        Args:
+            df: DataFrame contenant les résultats
+
+        Returns:
+            Figure Plotly
+        """
+        try:
+            fig = px.violin(
+                df,
+                x='engine',
+                y='execution_time',
+                color='engine',
+                box=True,  # Ajouter un box plot à l'intérieur
+                points='all',  # Afficher tous les points
+                title='Distribution de densité des temps d\'exécution (Violin Plot)',
+                labels={
+                    'execution_time': 'Temps d\'exécution (s)',
+                    'engine': 'Moteur SPARQL'
+                },
+                color_discrete_map=self._get_color_mapping(df['engine'].unique())
+            )
+
+            fig.update_layout(
+                template="plotly_white",
+                showlegend=True,
+                yaxis_title="Temps d'exécution (secondes)",
+                xaxis_title="Moteur"
+            )
+
+            return fig
+
+        except Exception as e:
+            log_message(f"Erreur lors de la création du violin plot: {str(e)}")
+            return self._create_error_figure("Erreur lors de la création du violin plot")
+
+    def plot_cdf(self, df: pd.DataFrame) -> go.Figure:
+        """
+        Crée une Cumulative Distribution Function (CDF) pour l'analyse des percentiles
+
+        Args:
+            df: DataFrame contenant les résultats
+
+        Returns:
+            Figure Plotly
+        """
+        try:
+            fig = px.ecdf(
+                df,
+                x='execution_time',
+                color='engine',
+                title='CDF: Pourcentage de requêtes terminées en moins de X secondes',
+                labels={
+                    'execution_time': 'Temps d\'exécution (s)',
+                    'engine': 'Moteur SPARQL'
+                },
+                color_discrete_map=self._get_color_mapping(df['engine'].unique())
+            )
+
+            # Ajouter des lignes de référence pour P95 et P99
+            for engine in df['engine'].unique():
+                engine_data = df[df['engine'] == engine]['execution_time']
+                p95 = engine_data.quantile(0.95)
+                p99 = engine_data.quantile(0.99)
+
+                # Ligne P95 (pointillé)
+                fig.add_hline(
+                    y=0.95,
+                    line_dash="dash",
+                    line_color="gray",
+                    annotation_text="P95 (95%)",
+                    annotation_position="right"
+                )
+
+                # Ligne P99 (pointillé)
+                fig.add_hline(
+                    y=0.99,
+                    line_dash="dot",
+                    line_color="darkgray",
+                    annotation_text="P99 (99%)",
+                    annotation_position="right"
+                )
+
+            fig.update_layout(
+                template="plotly_white",
+                showlegend=True,
+                xaxis_title="Temps d'exécution (secondes)",
+                yaxis_title="Pourcentage cumulatif (%)",
+                yaxis_tickformat='.0%'
+            )
+
+            return fig
+
+        except Exception as e:
+            log_message(f"Erreur lors de la création de la CDF: {str(e)}")
+            return self._create_error_figure("Erreur lors de la création de la CDF")
+
+    def plot_waterfall(self, df: pd.DataFrame) -> go.Figure:
+        """
+        Crée un waterfall chart montrant la contribution de chaque requête au temps total
+
+        Args:
+            df: DataFrame contenant les résultats
+
+        Returns:
+            Figure Plotly
+        """
+        try:
+            # Calculer le temps total par requête
+            query_times = df.groupby('query_name')['execution_time'].sum().sort_values(ascending=False)
+
+            # Limiter aux 15 requêtes les plus longues pour la lisibilité
+            top_queries = query_times.head(15)
+
+            # Calculer le temps des autres requêtes
+            other_time = query_times[15:].sum() if len(query_times) > 15 else 0
+
+            # Préparer les données pour le waterfall
+            labels = list(top_queries.index) + (['Autres requêtes'] if other_time > 0 else []) + ['Total']
+            values = list(top_queries.values) + ([other_time] if other_time > 0 else []) + [query_times.sum()]
+
+            # Créer les mesures (relative pour les contributions, total pour la fin)
+            measures = ['relative'] * (len(values) - 1) + ['total']
+
+            fig = go.Figure(go.Waterfall(
+                name="Contribution",
+                orientation="v",
+                measure=measures,
+                x=labels,
+                y=values,
+                text=[f"{v:.2f}s" for v in values],
+                textposition="outside",
+                connector={"line": {"color": "rgb(63, 63, 63)"}},
+                decreasing={"marker": {"color": "#ff7f0e"}},
+                increasing={"marker": {"color": "#1f77b4"}},
+                totals={"marker": {"color": "#2ca02c"}}
+            ))
+
+            fig.update_layout(
+                title='Contribution de chaque requête au temps total d\'exécution',
+                template="plotly_white",
+                showlegend=False,
+                xaxis_title="Requête",
+                yaxis_title="Temps d'exécution (secondes)",
+                xaxis_tickangle=45,
+                height=500
+            )
+
+            return fig
+
+        except Exception as e:
+            log_message(f"Erreur lors de la création du waterfall chart: {str(e)}")
+            return self._create_error_figure("Erreur lors de la création du waterfall chart")

@@ -18,30 +18,185 @@ class SystemInfoDisplay:
         """Initialise l'afficheur d'informations système"""
         self.metrics_collector = MetricsCollector()
     
+    def _get_detailed_os_info(self) -> Dict[str, str]:
+        """
+        Récupère des informations détaillées sur le système d'exploitation
+        
+        Returns:
+            Dictionnaire avec les informations détaillées de l'OS
+        """
+        os_info = {
+            "system": platform.system(),
+            "release": platform.release(),
+            "version": platform.version(),
+            "detailed_name": ""
+        }
+        
+        try:
+            if platform.system() == "Windows":
+                # Utilisation de WMI pour Windows pour plus de précision
+                try:
+                    import wmi
+                    c = wmi.WMI()
+                    
+                    # Informations détaillées sur l'OS
+                    for os_info_wmi in c.Win32_OperatingSystem():
+                        os_info["detailed_name"] = os_info_wmi.Caption
+                        os_info["version"] = os_info_wmi.Version
+                        os_info["build"] = os_info_wmi.BuildNumber
+                        os_info["architecture"] = os_info_wmi.OSArchitecture
+                        break
+                        
+                except ImportError:
+                    # Fallback si WMI n'est pas disponible
+                    try:
+                        import winreg
+                        
+                        # Lecture du registre Windows pour les informations détaillées
+                        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                           r"SOFTWARE\Microsoft\Windows NT\CurrentVersion")
+                        
+                        try:
+                            product_name = winreg.QueryValueEx(key, "ProductName")[0]
+                            current_build = winreg.QueryValueEx(key, "CurrentBuild")[0]
+                            display_version = winreg.QueryValueEx(key, "DisplayVersion")[0]
+                            
+                            os_info["detailed_name"] = f"{product_name}"
+                            os_info["build"] = current_build
+                            os_info["display_version"] = display_version
+                            
+                        except FileNotFoundError:
+                            pass
+                        finally:
+                            winreg.CloseKey(key)
+                            
+                    except Exception:
+                        # Utiliser les informations de base de platform
+                        os_info["detailed_name"] = f"{platform.system()} {platform.release()}"
+            else:
+                # Pour Linux/Mac
+                os_info["detailed_name"] = f"{platform.system()} {platform.release()}"
+                
+        except Exception as e:
+            log_message(f"Erreur lors de la récupération des infos OS détaillées: {str(e)}", "warning")
+            os_info["detailed_name"] = f"{platform.system()} {platform.release()}"
+        
+        return os_info
+    
+    def _get_detailed_cpu_info(self) -> Dict[str, str]:
+        """
+        Récupère des informations détaillées sur le processeur
+        
+        Returns:
+            Dictionnaire avec les informations détaillées du CPU
+        """
+        cpu_info = {
+            "name": platform.processor() or "Information non disponible",
+            "architecture": platform.machine(),
+            "cores_physical": psutil.cpu_count(logical=False),
+            "cores_logical": psutil.cpu_count(logical=True),
+            "frequency": "Non disponible"
+        }
+        
+        try:
+            if platform.system() == "Windows":
+                # Utilisation de WMI pour Windows
+                try:
+                    import wmi
+                    c = wmi.WMI()
+                    
+                    for processor in c.Win32_Processor():
+                        cpu_info["name"] = processor.Name.strip()
+                        cpu_info["max_clock_speed"] = f"{processor.MaxClockSpeed} MHz"
+                        cpu_info["manufacturer"] = processor.Manufacturer
+                        cpu_info["description"] = processor.Description
+                        break
+                        
+                except ImportError:
+                    # Fallback avec le registre Windows
+                    try:
+                        import winreg
+                        
+                        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                           r"HARDWARE\DESCRIPTION\System\CentralProcessor\0")
+                        
+                        try:
+                            cpu_name = winreg.QueryValueEx(key, "ProcessorNameString")[0]
+                            cpu_info["name"] = cpu_name.strip()
+                            
+                            # Fréquence du processeur
+                            try:
+                                cpu_mhz = winreg.QueryValueEx(key, "~MHz")[0]
+                                cpu_info["frequency"] = f"{cpu_mhz} MHz"
+                            except FileNotFoundError:
+                                pass
+                                
+                        except FileNotFoundError:
+                            pass
+                        finally:
+                            winreg.CloseKey(key)
+                            
+                    except Exception:
+                        pass
+            
+            # Informations de fréquence via psutil (disponible sur tous les OS)
+            try:
+                cpu_freq = psutil.cpu_freq()
+                if cpu_freq:
+                    cpu_info["current_freq"] = f"{cpu_freq.current:.0f} MHz"
+                    cpu_info["max_freq"] = f"{cpu_freq.max:.0f} MHz" if cpu_freq.max else "Non disponible"
+                    cpu_info["min_freq"] = f"{cpu_freq.min:.0f} MHz" if cpu_freq.min else "Non disponible"
+            except Exception:
+                pass
+                
+        except Exception as e:
+            log_message(f"Erreur lors de la récupération des infos CPU détaillées: {str(e)}", "warning")
+        
+        return cpu_info
+    
     def get_system_summary(self) -> Dict[str, str]:
         """
-        Récupère un résumé des informations système
+        Récupère un résumé des informations système avec détection précise
         
         Returns:
             Dictionnaire formaté des informations système
         """
         try:
+            # Informations détaillées de l'OS
+            os_info = self._get_detailed_os_info()
+            
+            # Informations détaillées du CPU
+            cpu_info = self._get_detailed_cpu_info()
+            
             # Informations de base
             info = {
-                "Système d'exploitation": f"{platform.system()} {platform.release()}",
+                "Système d'exploitation": os_info.get("detailed_name", f"{platform.system()} {platform.release()}"),
                 "Architecture": platform.machine(),
-                "Processeur": platform.processor() or "Information non disponible",
+                "Processeur": cpu_info["name"],
                 "Python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
                 "Date et heure": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
             
-            # Informations CPU
+            # Ajout des informations supplémentaires si disponibles
+            if "build" in os_info:
+                info["Build OS"] = os_info["build"]
+            
+            if "display_version" in os_info:
+                info["Version OS"] = os_info["display_version"]
+            
+            # Informations CPU détaillées
             cpu_count_logical = psutil.cpu_count(logical=True)
             cpu_count_physical = psutil.cpu_count(logical=False)
             cpu_percent = psutil.cpu_percent(interval=1)
             
             info["CPU"] = f"{cpu_count_physical} cœurs physiques, {cpu_count_logical} cœurs logiques"
             info["Utilisation CPU"] = f"{cpu_percent:.1f}%"
+            
+            # Ajout de la fréquence si disponible
+            if "current_freq" in cpu_info:
+                info["Fréquence CPU"] = cpu_info["current_freq"]
+            elif "max_clock_speed" in cpu_info:
+                info["Fréquence CPU"] = cpu_info["max_clock_speed"]
             
             # Informations mémoire
             memory = psutil.virtual_memory()
@@ -72,15 +227,21 @@ class SystemInfoDisplay:
         try:
             detailed_info = self.metrics_collector.get_system_info()
             
+            # Ajout des informations détaillées de l'OS et du CPU
+            os_info = self._get_detailed_os_info()
+            cpu_info = self._get_detailed_cpu_info()
+            
             # Ajout d'informations supplémentaires
             detailed_info["platform"] = {
                 "system": platform.system(),
                 "release": platform.release(),
                 "version": platform.version(),
                 "machine": platform.machine(),
-                "processor": platform.processor(),
+                "processor": cpu_info["name"],
                 "python_version": sys.version,
-                "python_implementation": platform.python_implementation()
+                "python_implementation": platform.python_implementation(),
+                "detailed_os": os_info,
+                "detailed_cpu": cpu_info
             }
             
             # Informations sur les processus
@@ -253,7 +414,8 @@ class SystemInfoDisplay:
         """
         relevant_vars = [
             'JAVA_HOME', 'PYTHONPATH', 'PATH', 'HOME', 'USER', 'USERNAME',
-            'VIRTUOSO_ENDPOINT', 'FUSEKI_ENDPOINT', 'DEBUG_MODE'
+            'VIRTUOSO_ENDPOINT', 'FUSEKI_ENDPOINT', 'DEBUG_MODE',
+            'PROCESSOR_IDENTIFIER', 'PROCESSOR_ARCHITECTURE'  # Variables Windows spécifiques
         ]
         
         env_vars = {}

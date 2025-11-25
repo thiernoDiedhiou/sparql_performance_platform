@@ -95,7 +95,7 @@ def render_data_export_section(results_df: pd.DataFrame):
     Args:
         results_df: DataFrame des résultats
     """
-    st.subheader("📊 Exportation des données brutes")
+    st.subheader("Exportation des données brutes")
     
     # Aperçu des données
     with st.expander("👀 Aperçu des données à exporter"):
@@ -514,10 +514,10 @@ def render_visualization_export_section(results_df: pd.DataFrame):
     Args:
         results_df: DataFrame des résultats
     """
-    st.subheader("📊 Exportation des visualisations")
+    st.subheader("Exportation des visualisations")
     
     st.info("""
-    💡 **Note:** Les graphiques interactifs Plotly peuvent être sauvegardés directement depuis l'onglet 'Visualisation' 
+    **Note:** Les graphiques interactifs Plotly peuvent être sauvegardés directement depuis l'onglet 'Visualisation' 
     en utilisant les options d'export intégrées (icône de l'appareil photo dans chaque graphique).
     """)
     
@@ -543,7 +543,7 @@ def render_visualization_export_section(results_df: pd.DataFrame):
         """)
     
     # Génération d'un package complet
-    if st.button("📦 Générer un package d'export complet"):
+    if st.button("Générer un package d'export complet"):
         with st.spinner("Préparation du package d'export..."):
             package_info = create_export_package_info(results_df)
             

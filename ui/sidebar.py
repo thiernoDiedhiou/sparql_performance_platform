@@ -18,7 +18,7 @@ except ImportError:
     DEFAULT_NUM_ITERATIONS = 5
     DEFAULT_WARMUP_ITERATIONS = 2
     DEFAULT_CONCURRENT_QUERIES = 1
-    AVAILABLE_DATASETS = ["LUBM", "BSBM", "DBpedia", "YAGO", "Personnalisé"]
+    AVAILABLE_DATASETS = ["LUBM", "DBpedia", "BSBM", "YAGO", "Personnalisé"]
     QUERY_TYPES = {
         "run_basic_queries": {"label": "Requêtes simples (pattern matching)", "default": True},
         "run_join_queries": {"label": "Requêtes de jointure", "default": True},

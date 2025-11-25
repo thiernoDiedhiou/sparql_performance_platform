@@ -1,15 +1,21 @@
 """
 Fonctions utilitaires et helpers pour l'application
+Version intégrée avec support de la synchronisation des données
 """
 
 import logging
 import streamlit as st
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import os
 import sys
 import json
 import pandas as pd
+from functools import wraps
+
+# Configuration cache UI (défini localement pour éviter import circulaire)
+# Note: Dupliqué depuis config.settings pour éviter circular import
+UI_CACHE_TTL = 600  # 10 minutes
 
 # Configuration du logging
 logging.basicConfig(
@@ -556,3 +562,379 @@ Généré le: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     except Exception as e:
         log_message(f"Erreur lors du formatage du résumé: {str(e)}", "error")
         return f"Erreur lors de la génération du résumé: {str(e)}"
+
+# ============================================================================
+# NOUVELLES FONCTIONS POUR LA SYNCHRONISATION DES DONNÉES
+# ============================================================================
+
+def validate_endpoint_accessibility(endpoint_url: str) -> bool:
+    """
+    Valide qu'un endpoint SPARQL est accessible
+    
+    Args:
+        endpoint_url: URL de l'endpoint
+        
+    Returns:
+        True si l'endpoint est accessible
+    """
+    try:
+        from core.executor import QueryExecutor
+        executor = QueryExecutor(timeout=10)
+        
+        result = executor.test_connectivity(endpoint_url)
+        return result["status"] == "online"
+        
+    except Exception as e:
+        log_message(f"Erreur de validation d'endpoint {endpoint_url}: {str(e)}", "error")
+        return False
+
+def format_sync_status(virtuoso_count: int, fuseki_count: int) -> Dict[str, Any]:
+    """
+    Formate le statut de synchronisation pour l'affichage
+    
+    Args:
+        virtuoso_count: Nombre de triplets dans Virtuoso
+        fuseki_count: Nombre de triplets dans Fuseki
+        
+    Returns:
+        Dictionnaire formaté du statut
+    """
+    status = {
+        "synchronized": False,
+        "message": "",
+        "action_needed": "",
+        "icon": ""
+    }
+    
+    if virtuoso_count == fuseki_count and virtuoso_count > 0:
+        status.update({
+            "synchronized": True,
+            "message": f"Datasets synchronisés ({virtuoso_count:,} triplets)",
+            "action_needed": "Aucune",
+            "icon": "✅"
+        })
+    elif virtuoso_count > 0 and fuseki_count == 0:
+        status.update({
+            "synchronized": False,
+            "message": f"Virtuoso a {virtuoso_count:,} triplets, Fuseki est vide",
+            "action_needed": "Synchroniser Virtuoso → Fuseki",
+            "icon": "⚠️"
+        })
+    elif virtuoso_count == 0 and fuseki_count > 0:
+        status.update({
+            "synchronized": False,
+            "message": f"Fuseki a {fuseki_count:,} triplets, Virtuoso est vide",
+            "action_needed": "Charger des données dans Virtuoso",
+            "icon": "⚠️"
+        })
+    elif virtuoso_count == 0 and fuseki_count == 0:
+        status.update({
+            "synchronized": True,
+            "message": "Les deux moteurs sont vides",
+            "action_needed": "Charger des données dans les deux moteurs",
+            "icon": "ℹ️"
+        })
+    else:
+        difference = abs(virtuoso_count - fuseki_count)
+        status.update({
+            "synchronized": False,
+            "message": f"Différence de {difference:,} triplets détectée",
+            "action_needed": "Vérifier et synchroniser les datasets",
+            "icon": "❌"
+        })
+    
+    return status
+
+def get_sync_status_summary() -> Dict[str, Any]:
+    """
+    Retourne un résumé rapide du statut de synchronisation avec support des graphes nommés
+
+    Returns:
+        Résumé du statut de synchronisation
+    """
+    if ('virtuoso_endpoint' not in st.session_state or
+        'fuseki_endpoint' not in st.session_state):
+        return {
+            "status": "not_configured",
+            "message": "Endpoints non configurés",
+            "can_test": False
+        }
+
+    try:
+        from utils.data_synchronizer import DataSynchronizer
+        from utils.dataset_manager import DatasetManager
+
+        synchronizer = DataSynchronizer(
+            st.session_state['virtuoso_endpoint'],
+            st.session_state['fuseki_endpoint']
+        )
+
+        # Charger les métadonnées pour obtenir les graph_uri
+        dataset_manager = DatasetManager(datasets_path="datasets")
+        metadata = dataset_manager.load_all_metadata()
+        virtuoso_graph_uri = metadata.get('virtuoso', {}).get('graph_uri') if metadata else None
+        fuseki_graph_uri = metadata.get('fuseki', {}).get('graph_uri') if metadata else None
+
+        # Compter les triplets dans les graphes nommés
+        v_count = synchronizer.count_triplets(st.session_state['virtuoso_endpoint'], virtuoso_graph_uri)
+        f_count = synchronizer.count_triplets(st.session_state['fuseki_endpoint'], fuseki_graph_uri)
+
+        status_info = format_sync_status(v_count, f_count)
+
+        return {
+            "status": "synchronized" if status_info["synchronized"] else "not_synchronized",
+            "message": status_info["message"],
+            "action_needed": status_info["action_needed"],
+            "virtuoso_count": v_count,
+            "fuseki_count": f_count,
+            "can_test": status_info["synchronized"] and v_count > 0
+        }
+
+    except Exception as e:
+        log_message(f"Erreur lors de l'obtention du statut de synchronisation: {str(e)}", "error")
+        return {
+            "status": "error",
+            "message": f"Erreur: {str(e)}",
+            "can_test": False
+        }
+
+# ============================================================================
+# FONCTIONS DE CACHE POUR L'INTERFACE UTILISATEUR
+# ============================================================================
+
+@st.cache_data(ttl=UI_CACHE_TTL)
+def compute_summary_stats(results_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calcule les statistiques récapitulatives avec cache
+
+    Args:
+        results_df: DataFrame des résultats
+
+    Returns:
+        DataFrame des statistiques agrégées
+    """
+    if results_df.empty or 'execution_time' not in results_df.columns:
+        return pd.DataFrame()
+
+    try:
+        summary = results_df.groupby(['query_name', 'engine']).agg({
+            'execution_time': ['mean', 'std', 'min', 'max', 'count'],
+            'success': 'mean',
+            'result_count': 'mean' if 'result_count' in results_df.columns else 'count',
+            'cpu_usage': 'mean' if 'cpu_usage' in results_df.columns else 'count',
+            'memory_usage': 'mean' if 'memory_usage' in results_df.columns else 'count'
+        }).round(4)
+
+        return summary
+    except Exception as e:
+        log_message(f"Erreur lors du calcul des statistiques: {str(e)}", "error")
+        return pd.DataFrame()
+
+@st.cache_data(ttl=UI_CACHE_TTL)
+def compute_percentiles(results_df: pd.DataFrame, percentiles: List[int] = [50, 95, 99]) -> Dict[str, Any]:
+    """
+    Calcule les percentiles de performance avec cache
+
+    Args:
+        results_df: DataFrame des résultats
+        percentiles: Liste des percentiles à calculer
+
+    Returns:
+        Dictionnaire des percentiles par moteur
+    """
+    if results_df.empty or 'execution_time' not in results_df.columns:
+        return {}
+
+    try:
+        percentile_data = {}
+
+        for engine in results_df['engine'].unique():
+            engine_data = results_df[results_df['engine'] == engine]['execution_time']
+            percentile_data[engine] = {
+                f"P{p}": engine_data.quantile(p / 100) for p in percentiles
+            }
+
+        return percentile_data
+    except Exception as e:
+        log_message(f"Erreur lors du calcul des percentiles: {str(e)}", "error")
+        return {}
+
+@st.cache_data(ttl=UI_CACHE_TTL)
+def filter_results_cached(results_df: pd.DataFrame,
+                          engine_filter: List[str],
+                          query_filter: List[str],
+                          success_only: bool = False) -> pd.DataFrame:
+    """
+    Filtre les résultats avec cache pour améliorer les performances
+
+    Args:
+        results_df: DataFrame des résultats
+        engine_filter: Liste des moteurs à inclure
+        query_filter: Liste des requêtes à inclure
+        success_only: Si True, ne garde que les succès
+
+    Returns:
+        DataFrame filtré
+    """
+    if results_df.empty:
+        return results_df
+
+    try:
+        filtered = results_df.copy()
+
+        if engine_filter and 'engine' in filtered.columns:
+            filtered = filtered[filtered['engine'].isin(engine_filter)]
+
+        if query_filter and 'query_name' in filtered.columns:
+            filtered = filtered[filtered['query_name'].isin(query_filter)]
+
+        if success_only and 'success' in filtered.columns:
+            filtered = filtered[filtered['success'] == True]
+
+        return filtered
+    except Exception as e:
+        log_message(f"Erreur lors du filtrage: {str(e)}", "error")
+        return results_df
+
+@st.cache_data(ttl=UI_CACHE_TTL)
+def compute_extreme_performances(results_df: pd.DataFrame, top_n: int = 5) -> Dict[str, pd.DataFrame]:
+    """
+    Identifie les performances extrêmes (meilleures et pires) avec cache
+
+    Args:
+        results_df: DataFrame des résultats
+        top_n: Nombre de résultats à retourner
+
+    Returns:
+        Dictionnaire contenant 'fastest' et 'slowest' DataFrames
+    """
+    if results_df.empty or 'execution_time' not in results_df.columns:
+        return {"fastest": pd.DataFrame(), "slowest": pd.DataFrame()}
+
+    try:
+        essential_cols = ['engine', 'query_name', 'execution_time', 'iteration']
+        available_cols = [col for col in essential_cols if col in results_df.columns]
+
+        fastest = results_df.nsmallest(top_n, 'execution_time')[available_cols]
+        slowest = results_df.nlargest(top_n, 'execution_time')[available_cols]
+
+        return {
+            "fastest": fastest,
+            "slowest": slowest
+        }
+    except Exception as e:
+        log_message(f"Erreur lors du calcul des performances extrêmes: {str(e)}", "error")
+        return {"fastest": pd.DataFrame(), "slowest": pd.DataFrame()}
+
+# ============================================================================
+# VALIDATION DES DONNÉES
+# ============================================================================
+
+def validate_results_schema(results_df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Valide le schéma du DataFrame de résultats
+
+    Args:
+        results_df: DataFrame à valider
+
+    Returns:
+        Dictionnaire avec le statut de validation et les erreurs
+    """
+    validation_result = {
+        "valid": True,
+        "errors": [],
+        "warnings": []
+    }
+
+    # Vérification que ce n'est pas None
+    if results_df is None:
+        validation_result["valid"] = False
+        validation_result["errors"].append("DataFrame est None")
+        return validation_result
+
+    # Vérification que ce n'est pas vide
+    if results_df.empty:
+        validation_result["valid"] = False
+        validation_result["errors"].append("DataFrame est vide")
+        return validation_result
+
+    # Colonnes requises
+    required_columns = ['query_name', 'engine', 'execution_time', 'success']
+    missing_columns = [col for col in required_columns if col not in results_df.columns]
+
+    if missing_columns:
+        validation_result["valid"] = False
+        validation_result["errors"].append(f"Colonnes manquantes: {', '.join(missing_columns)}")
+
+    # Colonnes optionnelles mais recommandées
+    optional_columns = ['iteration', 'result_count', 'cpu_usage', 'memory_usage']
+    missing_optional = [col for col in optional_columns if col not in results_df.columns]
+
+    if missing_optional:
+        validation_result["warnings"].append(f"Colonnes optionnelles manquantes: {', '.join(missing_optional)}")
+
+    # Validation des types de données
+    if validation_result["valid"]:
+        try:
+            # execution_time doit être numérique
+            if 'execution_time' in results_df.columns:
+                if not pd.api.types.is_numeric_dtype(results_df['execution_time']):
+                    validation_result["errors"].append("'execution_time' doit être numérique")
+                    validation_result["valid"] = False
+                elif (results_df['execution_time'] < 0).any():
+                    validation_result["errors"].append("'execution_time' contient des valeurs négatives")
+                    validation_result["valid"] = False
+
+            # success doit être booléen
+            if 'success' in results_df.columns:
+                if not pd.api.types.is_bool_dtype(results_df['success']):
+                    # Tenter une conversion
+                    try:
+                        results_df['success'] = results_df['success'].astype(bool)
+                        validation_result["warnings"].append("'success' a été converti en booléen")
+                    except:
+                        validation_result["errors"].append("'success' doit être booléen")
+                        validation_result["valid"] = False
+
+        except Exception as e:
+            validation_result["valid"] = False
+            validation_result["errors"].append(f"Erreur lors de la validation des types: {str(e)}")
+
+    return validation_result
+
+# ============================================================================
+# DÉCORATEUR POUR GESTION D'ERREURS VISUALISATIONS
+# ============================================================================
+
+def handle_visualization_errors(default_return=None, show_error=True):
+    """
+    Décorateur pour gérer les erreurs dans les fonctions de visualisation
+
+    Args:
+        default_return: Valeur par défaut à retourner en cas d'erreur
+        show_error: Si True, affiche l'erreur avec st.error()
+
+    Returns:
+        Décorateur
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                error_msg = f"Erreur dans {func.__name__}: {str(e)}"
+                log_message(error_msg, "error")
+
+                if show_error:
+                    st.error(f"❌ {error_msg}")
+
+                    # Afficher un expander avec les détails pour le débogage
+                    with st.expander("Détails de l'erreur"):
+                        st.code(str(e))
+                        import traceback
+                        st.code(traceback.format_exc())
+
+                return default_return
+        return wrapper
+    return decorator

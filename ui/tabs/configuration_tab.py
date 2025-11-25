@@ -1,5 +1,6 @@
 """
 Onglet de configuration et exécution des tests
+Version mise à jour avec support de la synchronisation des données
 """
 
 import streamlit as st
@@ -11,15 +12,23 @@ from ui.components.connectivity_checker import ConnectivityChecker
 from ui.components.system_info import SystemInfoDisplay
 from utils.data_manager import save_test_results
 from utils.helpers import log_message, filter_queries_by_selection
+from utils.dataset_manager import DatasetManager
+
 
 def render_configuration_tab(sidebar_config: Dict[str, Any]):
     """
-    Affiche l'onglet de configuration et tests
+    Affiche l'onglet de configuration et tests avec support de synchronisation
     
     Args:
         sidebar_config: Configuration de la barre latérale
     """
-    st.header("Configuration et exécution des tests")
+    st.header("Configuration et exécution des tests") 
+    
+    # En-tête avec informations
+    st.markdown("""
+        Cette section permet de configurer les endpoints, sélectionner les requêtes,
+        vérifier la connectivité, synchroniser les datasets et exécuter les tests de performance.
+        """)
     
     col1, col2 = st.columns(2)
     
@@ -28,20 +37,37 @@ def render_configuration_tab(sidebar_config: Dict[str, Any]):
         
         # Composant de vérification de connectivité
         connectivity_checker = ConnectivityChecker()
-        
+
+        # Charger les métadonnées pour obtenir les graph_uri
+        dataset_manager = DatasetManager(datasets_path="datasets")
+        metadata = dataset_manager.load_all_metadata()
+        virtuoso_graph_uri = metadata.get('virtuoso', {}).get('graph_uri') if metadata else None
+        fuseki_graph_uri = metadata.get('fuseki', {}).get('graph_uri') if metadata else None
+
         if st.button("Tester la connectivité"):
             with st.spinner("Test de connectivité en cours..."):
                 virtuoso_status = connectivity_checker.test_endpoint(
-                    sidebar_config["virtuoso_endpoint"], "Virtuoso"
+                    sidebar_config["virtuoso_endpoint"], "Virtuoso", virtuoso_graph_uri
                 )
                 fuseki_status = connectivity_checker.test_endpoint(
-                    sidebar_config["fuseki_endpoint"], "Jena Fuseki"
+                    sidebar_config["fuseki_endpoint"], "Jena Fuseki", fuseki_graph_uri
                 )
                 
                 st.write(f"**Virtuoso:** {virtuoso_status['message']}")
                 st.write(f"**Jena Fuseki:** {fuseki_status['message']}")
                 
-                if virtuoso_status['status'] == 'online' and fuseki_status['status'] == 'online':
+                # Stockage de l'état de connectivité dans session_state (NOUVEAU)
+                st.session_state['virtuoso_connected'] = virtuoso_status['status'] == 'online'
+                st.session_state['fuseki_connected'] = fuseki_status['status'] == 'online'
+                st.session_state['all_endpoints_connected'] = (
+                    st.session_state['virtuoso_connected'] and st.session_state['fuseki_connected']
+                )
+                
+                # Stockage des endpoints pour la synchronisation (NOUVEAU)
+                st.session_state['virtuoso_endpoint'] = sidebar_config["virtuoso_endpoint"]
+                st.session_state['fuseki_endpoint'] = sidebar_config["fuseki_endpoint"]
+                
+                if st.session_state['all_endpoints_connected']:
                     st.success("✅ Tous les endpoints sont accessibles!")
                 else:
                     st.warning("⚠️ Certains endpoints ne sont pas accessibles")
@@ -57,6 +83,51 @@ def render_configuration_tab(sidebar_config: Dict[str, Any]):
             for key, value in info.items():
                 st.write(f"**{key}:** {value}")
     
+    # ============================================================================
+    # NOUVELLE SECTION: SYNCHRONISATION DES DONNÉES
+    # ============================================================================
+    if st.session_state.get('all_endpoints_connected', False):
+        st.markdown("---")
+        st.subheader("🔄 Synchronisation des données")
+        
+        try:
+            # Import conditionnel pour éviter les erreurs
+            from ui.components.data_sync_ui import render_data_synchronization_ui
+            
+            render_data_synchronization_ui(
+                sidebar_config["virtuoso_endpoint"],
+                sidebar_config["fuseki_endpoint"]
+            )
+            
+        except ImportError:
+            st.warning("⚠️ Module de synchronisation non disponible")
+            st.info("Les fonctionnalités de synchronisation seront disponibles après l'installation complète du module.")
+            
+            # Interface basique de vérification (FALLBACK)
+            if st.button("Vérification basique des datasets"):
+                try:
+                    from utils.helpers import get_sync_status_summary
+                    status = get_sync_status_summary()
+                    
+                    if status["status"] == "synchronized":
+                        st.success(f"✅ {status['message']}")
+                    elif status["status"] == "not_synchronized":
+                        st.warning(f"⚠️ {status['message']}")
+                        st.info(f"{status['action_needed']}")
+                    else:
+                        st.error(f"❌ {status['message']}")
+                        
+                except Exception as e:
+                    st.error(f"Erreur lors de la vérification: {str(e)}")
+        
+        except Exception as e:
+            st.warning(f"⚠️ Synchronisation non disponible: {str(e)}")
+            
+        st.markdown("---")
+    
+    # ============================================================================
+    # SECTION ORIGINALE: SÉLECTION DES REQUÊTES (INCHANGÉE)
+    # ============================================================================
     st.subheader("Sélection des requêtes")
     
     # Récupération du catalogue de requêtes
@@ -145,19 +216,49 @@ LIMIT 10""",
     
     st.markdown(config_summary)
     
-    # Bouton d'exécution des tests
-    if st.button("🚀 Exécuter les tests", type="primary", use_container_width=True):
+    # ============================================================================
+    # VÉRIFICATION DE LA SYNCHRONISATION AVANT LES TESTS (NOUVEAU)
+    # ============================================================================
+    sync_status = None
+    if st.session_state.get('all_endpoints_connected', False):
+        try:
+            from utils.helpers import get_sync_status_summary
+            sync_status = get_sync_status_summary()
+            
+            if not sync_status.get("can_test", False):
+                st.warning("⚠️ Les datasets ne sont pas synchronisés. Les tests pourraient donner des résultats incorrects.")
+                
+        except Exception:
+            pass  # Ignorer les erreurs de vérification de synchronisation
+    
+    # ============================================================================
+    # BOUTON D'EXÉCUTION DES TESTS (MODIFIÉ)
+    # ============================================================================
+    if st.button("Exécuter les tests", type="primary", use_container_width=True):
         if not selected_queries:
             st.error("❌ Veuillez sélectionner au moins une requête à tester.")
+        elif not st.session_state.get('all_endpoints_connected', False):
+            st.error("❌ Veuillez d'abord vérifier la connectivité des endpoints.")
         else:
-            execute_tests(selected_queries, sidebar_config)
+            # Avertissement de synchronisation si nécessaire (NOUVEAU)
+            if sync_status and not sync_status.get("can_test", False):
+                st.warning("⚠️ Attention: Les datasets ne semblent pas synchronisés. Voulez-vous continuer ?")
+                if not st.button("Continuer malgré tout"):
+                    st.stop()
+            
+            # Appel de la nouvelle fonction avec validation (MODIFIÉ)
+            execute_tests_with_validation(selected_queries, sidebar_config)
 
-def execute_tests(selected_queries: Dict[str, str], config: Dict[str, Any]):
+
+# ============================================================================
+# NOUVELLE FONCTION: EXÉCUTION DES TESTS AVEC VALIDATION
+# ============================================================================
+def execute_tests_with_validation(selected_queries: Dict[str, str], config: Dict[str, Any]):
     """
-    Exécute les tests de performance
+    Version mise à jour de execute_tests avec validation des datasets
     
     Args:
-        selected_queries: Dictionnaire des requêtes à tester
+        selected_queries: Dictionnaire des requêtes sélectionnées
         config: Configuration des tests
     """
     try:
@@ -166,6 +267,62 @@ def execute_tests(selected_queries: Dict[str, str], config: Dict[str, Any]):
             config["virtuoso_endpoint"],
             config["fuseki_endpoint"]
         )
+        
+        # NOUVELLE ÉTAPE: Validation des datasets
+        st.subheader("Validation des datasets")
+        
+        # Validation avec gestion d'erreur
+        validation_passed = False
+        
+        try:
+            from utils.helpers import get_sync_status_summary
+            status = get_sync_status_summary()
+            
+            if status["status"] == "error":
+                st.error(f"❌ {status['message']}")
+                return
+            elif status["status"] == "not_synchronized":
+                st.warning(f"⚠️ {status['message']}")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🔄 Synchroniser maintenant"):
+                        try:
+                            from utils.data_synchronizer import DataSynchronizer
+                            synchronizer = DataSynchronizer(
+                                config["virtuoso_endpoint"],
+                                config["fuseki_endpoint"]
+                            )
+                            success = synchronizer.synchronize_datasets()
+                            if success:
+                                st.success("✅ Synchronisation réussie")
+                                validation_passed = True
+                                st.rerun()
+                            else:
+                                st.error("❌ Échec de la synchronisation")
+                                return
+                        except Exception as e:
+                            st.error(f"❌ Erreur de synchronisation: {str(e)}")
+                            return
+                
+                with col2:
+                    if st.button("Continuer sans synchronisation"):
+                        st.warning("⚠️ Les résultats peuvent être incorrects avec des datasets différents")
+                        validation_passed = True
+                
+                if not validation_passed:
+                    return
+            else:
+                st.success(f"✅ {status['message']}")
+                validation_passed = True
+                
+        except Exception as e:
+            st.warning(f"⚠️ Impossible de vérifier la synchronisation: {str(e)}")
+            validation_passed = st.button("Continuer sans vérification")
+        
+        if not validation_passed:
+            st.error("❌ Impossible de procéder aux tests")
+            return
         
         # Configuration du timeout
         tester.executor.set_timeout(config["query_timeout"])
@@ -286,7 +443,7 @@ def execute_tests(selected_queries: Dict[str, str], config: Dict[str, Any]):
             
             st.dataframe(engine_comparison, use_container_width=True)
             
-            st.info("📊 Consultez l'onglet 'Résultats' pour une analyse détaillée et l'onglet 'Visualisation' pour les graphiques.")
+            st.info("Consultez l'onglet 'Résultats' pour une analyse détaillée et l'onglet 'Visualisation' pour les graphiques.")
             
         else:
             st.error("❌ Aucun résultat généré. Vérifiez la connectivité et les requêtes.")
@@ -295,8 +452,8 @@ def execute_tests(selected_queries: Dict[str, str], config: Dict[str, Any]):
         log_message(f"Erreur générale lors de l'exécution des tests: {str(e)}", "error")
         st.error(f"❌ Erreur lors de l'exécution des tests: {str(e)}")
         
-        # Suggestions de dépannage
-        with st.expander("💡 Suggestions de dépannage"):
+        # Suggestions de dépannage (MISES À JOUR)
+        with st.expander("Suggestions de dépannage"):
             st.markdown("""
             **Problèmes courants et solutions:**
             
@@ -304,15 +461,23 @@ def execute_tests(selected_queries: Dict[str, str], config: Dict[str, Any]):
                - Vérifiez que Virtuoso et Fuseki sont démarrés
                - Testez la connectivité manuellement
                
-            2. **Timeout des requêtes:**
+            2. **Datasets non synchronisés:**
+               - Utilisez la fonction de synchronisation
+               - Vérifiez que les mêmes données sont chargées
+               
+            3. **Timeout des requêtes:**
                - Augmentez le timeout dans la barre latérale
                - Utilisez des requêtes plus simples pour commencer
                
-            3. **Erreurs de mémoire:**
+            4. **Erreurs de mémoire:**
                - Réduisez le nombre d'itérations
                - Diminuez le niveau de concurrence
                
-            4. **Erreurs de syntaxe SPARQL:**
+            5. **Erreurs de synchronisation:**
+               - Vérifiez l'espace disque disponible
+               - Redémarrez les moteurs SPARQL si nécessaire
+               
+            6. **Erreurs de syntaxe SPARQL:**
                - Vérifiez vos requêtes personnalisées
                - Utilisez les requêtes prédéfinies pour commencer
             """)
@@ -321,3 +486,18 @@ def execute_tests(selected_queries: Dict[str, str], config: Dict[str, Any]):
         # Nettoyage
         progress_bar.empty()
         status_text.empty()
+
+
+# ============================================================================
+# FONCTION ORIGINALE: GARDÉE POUR COMPATIBILITÉ
+# ============================================================================
+def execute_tests(selected_queries: Dict[str, str], config: Dict[str, Any]):
+    """
+    Fonction originale d'exécution des tests (gardée pour compatibilité)
+    
+    Args:
+        selected_queries: Dictionnaire des requêtes à tester
+        config: Configuration des tests
+    """
+    # Redirection vers la nouvelle fonction avec validation
+    execute_tests_with_validation(selected_queries, config)

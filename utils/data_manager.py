@@ -58,12 +58,12 @@ class DataManager:
             
             history = st.session_state[self.session_key_history]
             history.append(test_entry)
-            
-            # Limiter l'historique aux 50 derniers tests
+
+            # Limiter l'historique aux 50 derniers tests et persister directement
             if len(history) > 50:
-                history = history[-50:]
-            
-            st.session_state[self.session_key_history] = history
+                st.session_state[self.session_key_history] = history[-50:]
+            else:
+                st.session_state[self.session_key_history] = history
             
             log_message(f"Résultats sauvegardés: {len(results_df)} enregistrements")
             

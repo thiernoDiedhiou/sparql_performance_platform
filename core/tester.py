@@ -28,37 +28,40 @@ class SPARQLPerformanceTester:
         self.executor = QueryExecutor()
         self.metrics_collector = MetricsCollector()
         
-    def execute_single_query(self, engine_name: str, endpoint_url: str, 
+    def execute_single_query(self, engine_name: str, endpoint_url: str,
                            query: str, iteration: int) -> Dict[str, Any]:
         """
         Exécute une seule requête SPARQL et collecte les métriques
-        
+
         Args:
             engine_name: Nom du moteur SPARQL
             endpoint_url: URL de l'endpoint
             query: Requête SPARQL à exécuter
             iteration: Numéro d'itération
-            
+
         Returns:
             Dictionnaire contenant les résultats et métriques
         """
         log_message(f"Exécution {iteration} sur {engine_name}")
-        
+
         # Collecte des métriques de départ
-        start_metrics = self.metrics_collector.collect_system_metrics()
         start_time = time.time()
-        
+
         # Exécution de la requête
         query_result = self.executor.execute_query(endpoint_url, query)
-        
+
         # Collecte des métriques de fin
         end_time = time.time()
-        end_metrics = self.metrics_collector.collect_system_metrics()
-        
+
+        # Collecte des métriques système après l'exécution
+        # Note: CPU et mémoire sont des valeurs instantanées, pas cumulatives
+        current_metrics = self.metrics_collector.collect_system_metrics()
+
         # Calcul des métriques finales
         execution_time = end_time - start_time
-        cpu_usage = end_metrics['cpu'] - start_metrics['cpu']
-        memory_usage = end_metrics['memory'] - start_metrics['memory']
+        # Utiliser les valeurs actuelles (pas de soustraction pour les pourcentages)
+        cpu_usage = current_metrics['cpu']
+        memory_usage = current_metrics['memory']
         
         result = {
             "engine": engine_name,
