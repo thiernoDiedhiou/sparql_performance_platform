@@ -1,4 +1,4 @@
-# SPARQL Performance Testing Platform v2.0
+# Platforme Test Performance Moteur SPARQL
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Streamlit](https://img.shields.io/badge/streamlit-1.31+-red.svg)](https://streamlit.io/)
@@ -7,7 +7,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-52%25-yellow.svg)](tests/)
 [![License](https://img.shields.io/badge/license-Academic-orange.svg)](LICENSE)
 
-Une plateforme professionnelle d'évaluation comparative des performances des moteurs SPARQL, conçue pour comparer **Virtuoso** et **Jena Fuseki** avec des métriques scientifiques avancées et une infrastructure production-ready.
+Une plateforme professionnelle d'évaluation comparative des performances des moteurs SPARQL, conçue pour comparer **Virtuoso** et **Jena Fuseki**.
 
 ---
 
@@ -28,6 +28,7 @@ Une plateforme professionnelle d'évaluation comparative des performances des mo
 ## Fonctionnalités principales
 
 ### Tests de performance automatisés
+
 - Exécution automatique de requêtes SPARQL avec mesures détaillées
 - **Dashboard temps réel** avec barres de progression et ETA
 - Support multi-moteurs (Virtuoso, Jena Fuseki, et autres endpoints SPARQL)
@@ -35,6 +36,7 @@ Une plateforme professionnelle d'évaluation comparative des performances des mo
 - Gestion robuste des erreurs avec retry automatique
 
 ### Métriques scientifiques avancées
+
 - **Temps d'exécution** : P50, P75, P90, P95, P99 (percentiles)
 - **CPU** : Monitoring par cœur avec détection de l'hyperthreading
 - **Mémoire** : RSS, VMS, disponibilité système
@@ -43,21 +45,23 @@ Une plateforme professionnelle d'évaluation comparative des performances des mo
 - **Fiabilité** : Taux de succès, classification des erreurs
 
 ### Synchronisation optimisée
-- **Exportation par chunks** : Support pour 10M+ triplets (vs 500K avant)
+
+- **Exportation par chunks** : Support pour 100K+
 - Barres de progression par chunk avec estimation de temps
 - Retry automatique par chunk en cas d'erreur
 - Validation des données exportées
 
-### 🆕 Gestion complète des datasets (v2.0)
+### 🆕 Gestion  des datasets
+
 - **Chargement intelligent** : Validation automatique et estimation des ressources
 - **Persistance des métadonnées** : Sauvegarde dans `datasets_metadata.json`
 - **Mise à jour automatique** : Fichier `.env` mis à jour après chaque chargement
 - **Suppression sélective** : Nettoyage par moteur ou global
 - **Statistiques détaillées** : Vue d'ensemble des datasets chargés par moteur
 - **Interface intuitive** : Gestion complète via Streamlit
-- 📚 **[Documentation complète](README_DATASETS.md)**
 
 ### Infrastructure production-ready
+
 - **Docker Compose** : Déploiement one-click de Virtuoso + Fuseki + Streamlit
 - **Logging professionnel** : Rotation automatique (10MB, 5 backups)
 - **Configuration .env** : 38 variables pour personnalisation complète
@@ -65,6 +69,7 @@ Une plateforme professionnelle d'évaluation comparative des performances des mo
 - **Tests unitaires** : 103 tests avec 96% de réussite
 
 ### Visualisations interactives
+
 - Graphiques dynamiques avec Plotly
 - Comparaisons multi-moteurs
 - Heatmaps de performance
@@ -77,6 +82,7 @@ Une plateforme professionnelle d'évaluation comparative des performances des mo
 ### Priority 1 - Infrastructure critique
 
 #### Tests unitaires complets
+
 ```bash
 tests/
 ├── test_executor.py          # 17 tests - Exécution de requêtes
@@ -91,6 +97,7 @@ Total: 103 tests | 96% pass rate | 52% coverage
 ```
 
 **Exécution :**
+
 ```bash
 # Tous les tests
 pytest tests/
@@ -104,6 +111,7 @@ pytest tests/ -m "integration"
 ```
 
 #### Logging professionnel
+
 ```python
 from utils.logging_config import setup_logging, log_query, log_sync
 
@@ -126,12 +134,14 @@ with log_performance_context("Data export"):
 ```
 
 **Fonctionnalités :**
+
 - Rotation automatique à 10MB
 - 5 fichiers de backup conservés
 - Console colorée (DEBUG=bleu, INFO=vert, WARNING=jaune, ERROR=rouge)
 - Formats structurés pour analyse
 
 #### Docker Compose
+
 ```bash
 # Démarrage complet (Virtuoso + Fuseki + Streamlit)
 docker-compose up -d
@@ -147,11 +157,13 @@ docker-compose down
 ```
 
 **Services orchestrés :**
+
 - **Virtuoso** : Port 8890 (SPARQL) + 1111 (ISQL)
 - **Jena Fuseki** : Port 3030 (UI + SPARQL)
 - **Streamlit** : Port 8501 (Interface web)
 
 **Health checks :**
+
 - Vérification automatique toutes les 30s
 - Retry x3 avant échec
 - Démarrage séquentiel avec dépendances
@@ -159,6 +171,7 @@ docker-compose down
 ### Priority 2 - Fonctionnalités avancées
 
 #### Synchronisation par chunks
+
 ```python
 from utils.data_synchronizer_v2 import DataSynchronizerV2
 
@@ -182,12 +195,14 @@ success = sync.synchronize_data(progress_callback=progress_callback)
 ```
 
 **Avantages :**
+
 - Support pour **10M+ triplets** (vs 500K avant)
 - Pas de timeout sur les gros volumes
 - Progression granulaire par chunk
 - Retry automatique par chunk
 
 #### Métriques avancées
+
 ```python
 from core.advanced_metrics import AdvancedMetricsCollector
 
@@ -220,6 +235,7 @@ report = collector.generate_performance_report(
 ```
 
 **Métriques collectées :**
+
 - **Percentiles** : P50, P75, P90, P95, P99 (standards scientifiques)
 - **CPU** : Usage global + par cœur + fréquences
 - **Mémoire** : RSS, VMS, disponibilité système
@@ -227,6 +243,7 @@ report = collector.generate_performance_report(
 - **Réseau I/O** : Envoi/Réception
 
 #### Validation de configuration
+
 ```python
 from config.config_validator import ConfigValidator
 
@@ -248,6 +265,7 @@ else:
 ```
 
 **Validations effectuées :**
+
 - **URLs** : Format, protocole HTTP/HTTPS
 - **Endpoints** : Connectivité, timeout, réponse SPARQL
 - **Chemins** : Existence, permissions lecture/écriture
@@ -255,6 +273,7 @@ else:
 - **Dépendances** : Modules Python requis
 
 #### Configuration .env
+
 ```bash
 # .env.example - 38 variables configurables
 
@@ -292,6 +311,7 @@ LOG_BACKUP_COUNT=5
 ```
 
 **Chargement automatique :**
+
 ```python
 from config.env_loader import load_env_config, get_env
 
@@ -305,6 +325,7 @@ enable_cache = get_env("ENABLE_QUERY_CACHE", True, cast_type=bool)
 ```
 
 #### Dashboard temps réel
+
 ```python
 from ui.components.realtime_dashboard import RealtimeDashboard
 
@@ -330,8 +351,8 @@ dashboard.display_final_summary(summary_container)
 ```
 
 **Visualisations temps réel :**
+
 - **Barres de progression** : Requête actuelle + progression globale
-- **ETA** : Estimation du temps restant
 - **Graphiques dynamiques** : Temps d'exécution par requête (Plotly)
 - **Monitoring ressources** : CPU + Mémoire en temps réel
 - **Résumé final** : Statistiques agrégées
@@ -345,77 +366,26 @@ sparql_performance_platform_v2/
 ├── main.py                           # Point d'entrée Streamlit
 │
 ├── config/                           # Configuration
-│   ├── settings.py                   # Paramètres globaux
-│   ├── endpoints.py                  # Configuration endpoints
-│   ├── config_validator.py           # NEW: Validation pré-vol
-│   ├── env_loader.py                 # NEW: Chargement .env
-│   └── .env.example                  # NEW: Template configuration
 │
 ├── core/                             # Logique métier
-│   ├── tester.py                     # Testeur de performance
-│   ├── executor.py                   # Exécuteur de requêtes
-│   ├── metrics.py                    # Collecteur de métriques
-│   └── advanced_metrics.py           # NEW: Métriques avancées (percentiles, CPU par cœur)
 │
 ├── queries/                          # Catalogues de requêtes
-│   ├── catalog.py                    # Catalogue principal
-│   ├── lubm_queries.py               # Requêtes LUBM
-│   ├── dbpedia_queries.py            # Requêtes DBpedia
-│   └── generic_queries.py            # Requêtes génériques
 │
 ├── visualization/                    # Visualisations
-│   ├── visualizer.py                 # Visualiseur principal
-│   ├── charts.py                     # Graphiques spécialisés
-│   └── reports.py                    # Génération rapports
 │
 ├── ui/                               # Interface utilisateur
 │   ├── sidebar.py                    # Barre latérale
 │   ├── tabs/                         # Onglets
-│   │   ├── configuration_tab.py
-│   │   ├── execution_tab.py
-│   │   ├── results_tab.py
-│   │   └── visualization_tab.py
 │   └── components/                   # NEW: Composants UI
-│       ├── realtime_dashboard.py     # NEW: Dashboard temps réel
-│       ├── data_sync_ui.py           # NEW: Interface synchronisation
-│       └── system_info.py            # NEW: Informations système
 │
 ├── utils/                            # Utilitaires
-│   ├── data_manager.py               # Gestion des données
-│   ├── export_manager.py             # Gestion exports
-│   ├── helpers.py                    # Fonctions utilitaires
-│   ├── logging_config.py             # NEW: Logging professionnel
-│   ├── data_synchronizer.py          # Synchronisation basique
-│   └── data_synchronizer_v2.py       # NEW: Synchronisation par chunks
 │
 ├── tests/                            # NEW: Tests unitaires
-│   ├── test_executor.py              # 17 tests
-│   ├── test_tester.py                # 12 tests
-│   ├── test_data_synchronizer.py     # 22 tests
-│   ├── test_queries.py               # 23 tests
-│   ├── test_helpers.py               # 28 tests
-│   ├── conftest.py                   # Fixtures
-│   └── pytest.ini                    # Configuration
-│
-├── logs/                             # NEW: Logs rotatifs
-│   ├── sparql_platform.log
-│   ├── sparql_platform.log.1
-│   └── ...
-│
-├── results/                          # Résultats des tests
-├── data/                             # Données temporaires
-│
+│  
 ├── docker-compose.yml                # NEW: Orchestration Docker
 ├── Dockerfile                        # NEW: Image Streamlit
 ├── .dockerignore                     # NEW: Exclusions Docker
 ├── requirements.txt                  # Dépendances Python
-│
-└── docs/                             # NEW: Documentation
-    ├── AMELIORATIONS_PRIORITE_1.md   # Documentation Priority 1
-    ├── AMELIORATIONS_PRIORITE_2.md   # Documentation Priority 2
-    └── RESUME_GLOBAL_AMELIORATIONS.md # Résumé global
-
-Total: 20 nouveaux fichiers | ~5,400 lignes de code
 ```
 
 ---
@@ -426,8 +396,8 @@ Total: 20 nouveaux fichiers | ~5,400 lignes de code
 
 ```bash
 # 1. Cloner le repository
-git clone https://github.com/thiernoDiedhiou/sparql_performance_platform_v2.git
-cd sparql_performance_platform_v2
+git clone https://github.com/thiernoDiedhiou/sparql_performance_platform.git
+cd sparql_performance_platform
 
 # 2. Configurer l'environnement (OBLIGATOIRE)
 cp .env.example .env
@@ -454,8 +424,8 @@ docker-compose ps
 # - Virtuoso et Fuseki installés séparément
 
 # 2. Cloner et installer
-git clone https://github.com/thiernoDiedhiou/sparql_performance_platform_v2.git
-cd sparql_performance_platform_v2
+git clone https://github.com/thiernoDiedhiou/sparql_performance_platform.git
+cd sparql_performance_platform
 
 # 3. Créer environnement virtuel
 python -m venv venv
@@ -565,23 +535,19 @@ CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }
 - Niveaux d'imbrication max : 10
 - Timeout : 60 secondes
 
-### Guide Complet
-
-Pour plus de détails, consultez [SECURITY.md](SECURITY.md)
-
----
-
 ## Utilisation
 
 ### 1. Configuration initiale
 
 #### Via interface Streamlit
+
 1. Ouvrir [http://localhost:8501](http://localhost:8501)
 2. Barre latérale > Configuration
 3. Entrer les URLs des endpoints SPARQL
 4. Cliquer sur "Valider la configuration"
 
 #### Via fichier .env
+
 ```bash
 # Copier le template
 cp .env.example .env
@@ -617,6 +583,7 @@ sync.synchronize_data()
 ### 3. Exécution des tests
 
 #### Interface graphique
+
 1. Onglet "Exécution"
 2. Sélectionner le jeu de données (LUBM, DBpedia, etc.)
 3. Choisir les types de requêtes à tester
@@ -625,6 +592,7 @@ sync.synchronize_data()
 6. Suivre la progression en temps réel avec dashboard
 
 #### API programmatique
+
 ```python
 from core.tester import SPARQLPerformanceTester
 from queries.catalog import SPARQLQueryCatalog
@@ -653,11 +621,13 @@ for query in queries:
 ### 4. Analyse des résultats
 
 #### Onglet "Résultats"
+
 - Tableau récapitulatif avec métriques clés
 - Tri et filtrage par moteur/requête
 - Export CSV, Excel, JSON
 
 #### Onglet "Visualisation"
+
 - **Graphiques en barres** : Comparaison temps d'exécution
 - **Graphiques de dispersion** : Corrélation Virtuoso vs Fuseki
 - **Heatmaps** : Vue d'ensemble des performances
@@ -665,6 +635,7 @@ for query in queries:
 - **Séries temporelles** : Évolution par itération
 
 #### Métriques avancées
+
 ```python
 from core.advanced_metrics import AdvancedMetricsCollector
 
@@ -688,11 +659,13 @@ report = collector.generate_performance_report(
 ### 5. Export et rapports
 
 #### Formats disponibles
+
 - **CSV** : Données brutes pour analyse externe
 - **Excel** : Feuilles multiples (résumé + détails + métriques)
 - **JSON** : Données structurées avec métadonnées complètes
 
 #### Génération de rapports
+
 ```python
 from visualization.reports import ReportGenerator
 
@@ -742,14 +715,14 @@ pytest tests/ -x
 
 ### Statistiques de tests
 
-| Fichier                      | Tests | Réussite | Couverture |
-|------------------------------|-------|----------|------------|
-| test_executor.py             | 17    | 100%     | 68%        |
-| test_tester.py               | 12    | 100%     | 61%        |
-| test_data_synchronizer.py    | 22    | 95%      | 54%        |
-| test_queries.py              | 23    | 100%     | 72%        |
-| test_helpers.py              | 28    | 96%      | 85%        |
-| **TOTAL**                    | **102** | **96%** | **52%**   |
+| Fichier                   | Tests         | Réussite     | Couverture    |
+| ------------------------- | ------------- | ------------- | ------------- |
+| test_executor.py          | 17            | 100%          | 68%           |
+| test_tester.py            | 12            | 100%          | 61%           |
+| test_data_synchronizer.py | 22            | 95%           | 54%           |
+| test_queries.py           | 23            | 100%          | 72%           |
+| test_helpers.py           | 28            | 96%           | 85%           |
+| **TOTAL**           | **102** | **96%** | **52%** |
 
 ### CI/CD avec GitHub Actions
 
@@ -785,6 +758,7 @@ jobs:
 ### Profils de test prédéfinis
 
 #### Développement rapide
+
 ```python
 QUICK_TEST_PROFILE = {
     "num_iterations": 3,
@@ -796,6 +770,7 @@ QUICK_TEST_PROFILE = {
 ```
 
 #### Production complète
+
 ```python
 PRODUCTION_TEST_PROFILE = {
     "num_iterations": 10,
@@ -808,6 +783,7 @@ PRODUCTION_TEST_PROFILE = {
 ```
 
 #### Test de stress
+
 ```python
 STRESS_TEST_PROFILE = {
     "num_iterations": 20,
@@ -888,38 +864,12 @@ class CustomMetricsCollector(AdvancedMetricsCollector):
 
 ---
 
-## Documentation complète
-
-### Documents disponibles
-
-| Document | Description | Lignes |
-|----------|-------------|--------|
-| [AMELIORATIONS_PRIORITE_1.md](AMELIORATIONS_PRIORITE_1.md) | Tests, logging, Docker, gestion d'erreurs | ~600 |
-| [AMELIORATIONS_PRIORITE_2.md](AMELIORATIONS_PRIORITE_2.md) | Chunking, métriques avancées, .env, dashboard | ~400 |
-| [RESUME_GLOBAL_AMELIORATIONS.md](RESUME_GLOBAL_AMELIORATIONS.md) | Résumé global avec statistiques | ~800 |
-| [README.md](README.md) | Guide d'utilisation (ce document) | ~1,000 |
-
-### Guides spécifiques
-
-#### Guide de déploiement Docker
-Voir [AMELIORATIONS_PRIORITE_1.md](AMELIORATIONS_PRIORITE_1.md#3-docker-compose-pour-déploiement) - Section 3
-
-#### Guide de synchronisation
-Voir [AMELIORATIONS_PRIORITE_2.md](AMELIORATIONS_PRIORITE_2.md#1-synchronisation-optimisée) - Section 1
-
-#### Guide des métriques avancées
-Voir [AMELIORATIONS_PRIORITE_2.md](AMELIORATIONS_PRIORITE_2.md#2-métriques-avancées) - Section 2
-
-#### Guide de configuration .env
-Voir [AMELIORATIONS_PRIORITE_2.md](AMELIORATIONS_PRIORITE_2.md#4-support-variables-denvironnement) - Section 4
-
----
-
 ## Dépannage
 
 ### Problèmes courants
 
 #### 1. Endpoint non accessible
+
 ```bash
 # Diagnostic
 curl -X GET "http://localhost:8890/sparql?query=ASK%20%7B%7D"
@@ -932,6 +882,7 @@ curl -X GET "http://localhost:8890/sparql?query=ASK%20%7B%7D"
 ```
 
 #### 2. Tests échouent
+
 ```bash
 # Diagnostic
 pytest tests/ -vv --tb=short
@@ -944,6 +895,7 @@ pytest tests/ -vv --tb=short
 ```
 
 #### 3. Synchronisation échoue
+
 ```bash
 # Diagnostic
 python -c "from utils.data_synchronizer_v2 import DataSynchronizerV2; DataSynchronizerV2().test_connectivity()"
@@ -956,6 +908,7 @@ python -c "from utils.data_synchronizer_v2 import DataSynchronizerV2; DataSynchr
 ```
 
 #### 4. Erreurs de mémoire
+
 ```bash
 # Solutions
 - Réduire le nombre d'itérations simultanées
@@ -965,6 +918,7 @@ python -c "from utils.data_synchronizer_v2 import DataSynchronizerV2; DataSynchr
 ```
 
 #### 5. Dashboard ne s'affiche pas
+
 ```bash
 # Diagnostic
 streamlit --version
@@ -980,6 +934,7 @@ curl http://localhost:8501/_stcore/health
 ### Logs et debugging
 
 #### Activation mode debug
+
 ```bash
 # Via .env
 LOG_LEVEL=DEBUG
@@ -990,6 +945,7 @@ logging.basicConfig(level=logging.DEBUG)
 ```
 
 #### Consultation des logs
+
 ```bash
 # Logs rotatifs
 tail -f logs/sparql_platform.log
@@ -1006,20 +962,20 @@ docker-compose logs -f fuseki
 
 ### Obtenir de l'aide
 
-- **Issues GitHub** : [Créer une issue](https://github.com/thiernoDiedhiou/sparql_performance_platform_v2/issues)
-- **Documentation** : Consulter le dossier [docs/](docs/)
-- **Email** : contact@example.com
+- **Email** : githubthierno@gmail.com
 
 ### Contribuer au projet
 
 #### 1. Fork et clone
+
 ```bash
-git clone https://github.com/VOTRE_USERNAME/sparql_performance_platform_v2.git
-cd sparql_performance_platform_v2
+git clone https://github.com/thiernoDiedhiou/sparql_performance_platform.git
+cd sparql_performance_platform
 git checkout -b feature/amazing-feature
 ```
 
 #### 2. Développer
+
 ```bash
 # Créer environnement virtuel
 python -m venv venv
@@ -1046,6 +1002,7 @@ pytest tests/ -v
 ```
 
 #### 3. Commiter et pousser
+
 ```bash
 git add .
 git commit -m "feat: Add amazing feature"
@@ -1053,6 +1010,7 @@ git push origin feature/amazing-feature
 ```
 
 #### 4. Créer une Pull Request
+
 - Décrire clairement les changements
 - Référencer les issues liées
 - S'assurer que tous les tests passent
@@ -1079,40 +1037,12 @@ chore: Tâches de maintenance
 
 ---
 
-## Roadmap
-
-### Version 2.1 (Q2 2024)
-
-- [ ] Support pour GraphDB et Blazegraph
-- [ ] Interface REST API pour automatisation
-- [ ] Export vers Grafana/Prometheus
-- [ ] Clustering pour tests distribués
-- [ ] Support SPARQL 1.1 Update (INSERT/DELETE)
-
-### Version 2.2 (Q3 2024)
-
-- [ ] Machine Learning pour prédiction de performance
-- [ ] Optimisation automatique de requêtes
-- [ ] Détection d'anomalies en temps réel
-- [ ] Support pour fédérations SPARQL
-- [ ] Interface multi-utilisateurs
-
-### Version 3.0 (Q4 2024)
-
-- [ ] Architecture microservices
-- [ ] Support Kubernetes
-- [ ] Interface de reporting avancée
-- [ ] Intégration CI/CD native
-- [ ] Support pour Property Graphs (Cypher, Gremlin)
-
----
 
 ## Licence
 
 Ce projet est développé dans le cadre d'un **Mémoire de Master 2 en Informatique - Génie Logiciel**.
 
 **Usage académique** : Libre pour la recherche et l'éducation.
-**Usage commercial** : Contactez l'auteur pour une licence.
 
 ---
 
@@ -1124,10 +1054,10 @@ Si vous utilisez cette plateforme dans vos travaux de recherche, veuillez citer 
 @mastersthesis{diedhiou2024sparql,
   author  = {Thierno Diedhiou},
   title   = {Évaluation comparative des performances des moteurs SPARQL: Virtuoso vs Jena Fuseki},
-  school  = {Université [Nom]},
+  school  = {Université Iba Der Thiam de Thiès, Sénégal},
   year    = {2024},
   type    = {Mémoire de Master 2},
-  url     = {https://github.com/thiernoDiedhiou/sparql_performance_platform_v2}
+  url     = {https://github.com/thiernoDiedhiou/sparql_performance_platform}
 }
 ```
 
@@ -1143,30 +1073,6 @@ Si vous utilisez cette plateforme dans vos travaux de recherche, veuillez citer 
 
 ---
 
-## Statistiques du projet
-
-```
-╔══════════════════════════════╦═══════════╦═══════════╦════════════╗
-║ Catégorie                    ║ Fichiers  ║ Lignes    ║ Qualité    ║
-╠══════════════════════════════╬═══════════╬═══════════╬════════════╣
-║ Tests unitaires              ║     7     ║  ~1,500   ║ ⭐⭐⭐⭐⭐ ║
-║ Logging professionnel        ║     1     ║    ~320   ║ ⭐⭐⭐⭐⭐ ║
-║ Docker/Déploiement           ║     3     ║    ~100   ║ ⭐⭐⭐⭐⭐ ║
-║ Synchronisation optimisée    ║     1     ║    ~400   ║ ⭐⭐⭐⭐⭐ ║
-║ Métriques avancées           ║     1     ║    ~450   ║ ⭐⭐⭐⭐⭐ ║
-║ Configuration & Validation   ║     3     ║    ~800   ║ ⭐⭐⭐⭐   ║
-║ Dashboard temps réel         ║     1     ║    ~350   ║ ⭐⭐⭐⭐⭐ ║
-║ Documentation                ║     4     ║  ~2,500   ║ ⭐⭐⭐⭐⭐ ║
-╠══════════════════════════════╬═══════════╬═══════════╬════════════╣
-║ TOTAL                        ║    21     ║  ~6,420   ║ ⭐⭐⭐⭐⭐ ║
-╚══════════════════════════════╩═══════════╩═══════════╩════════════╝
-
-Tests: 103 tests | 96% pass rate | 52% coverage
-Qualité: 9.3/10 (vs 7.2/10 avant améliorations)
-```
-
 ---
 
-**Développé avec soin pour l'évaluation scientifique des performances SPARQL**
-
-**Version 2.0** | Dernière mise à jour: 2024
+**Développé  pour l'évaluation des performances SPARQL**

@@ -100,21 +100,26 @@ class MetricsCollector:
             log_message(f"Erreur lors de la récupération des informations système: {str(e)}")
             return {}
     
-    def calculate_resource_usage(self, start_metrics: Dict[str, float], 
+    def calculate_resource_usage(self, start_metrics: Dict[str, float],
                                end_metrics: Dict[str, float]) -> Dict[str, float]:
         """
         Calcule l'utilisation des ressources entre deux points de mesure
-        
+
         Args:
             start_metrics: Métriques au début
             end_metrics: Métriques à la fin
-            
+
         Returns:
             Dictionnaire contenant l'utilisation des ressources
+
+        Note:
+            CPU est une valeur instantanée (pourcentage), pas cumulative.
+            On retourne la valeur finale (end_metrics["cpu"]).
+            Mémoire: différence en MB (peut être négative si libération).
         """
         return {
-            "cpu_usage": end_metrics["cpu"] - start_metrics["cpu"],
-            "memory_usage": end_metrics["memory"] - start_metrics["memory"],
+            "cpu_usage": end_metrics["cpu"],  # Valeur instantanée finale
+            "memory_delta": end_metrics["memory"] - start_metrics["memory"],  # Différence mémoire
             "duration": end_metrics["timestamp"] - start_metrics["timestamp"]
         }
     

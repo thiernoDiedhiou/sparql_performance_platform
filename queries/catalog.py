@@ -6,6 +6,8 @@ from typing import Dict
 from queries.lubm_queries import LUBMQueries
 from queries.dbpedia_queries import DBpediaQueries
 from queries.generic_queries import GenericQueries
+from rdflib.plugins.sparql import prepareQuery
+from pyparsing import ParseException
 
 class SPARQLQueryCatalog:
     """Catalogue principal pour gérer toutes les requêtes SPARQL"""
@@ -74,26 +76,76 @@ class SPARQLQueryCatalog:
     
     def validate_query(self, query: str) -> Dict[str, bool]:
         """
-        Valide une requête SPARQL personnalisée
-        
+        Valide une requête SPARQL personnalisée avec validation syntaxique complète
+
+        Cette fonction utilise rdflib pour parser réellement la requête SPARQL
+        et détecter les erreurs de syntaxe (variables invalides, clauses manquantes, etc.)
+
         Args:
             query: Requête SPARQL à valider
-            
+
         Returns:
-            Dictionnaire contenant le résultat de validation
+            Dictionnaire contenant le résultat de validation:
+            - valid (bool): True si la syntaxe est valide
+            - error (str): Message d'erreur détaillé si invalide
+
+        Examples:
+            >>> catalog.validate_query("SELECT ?s WHERE { ?s ?p ?o }")
+            {'valid': True, 'error': ''}
+
+            >>> catalog.validate_query("SELECT salad LIMIT 10")
+            {'valid': False, 'error': 'Syntaxe SPARQL invalide: ...'}
         """
-        # Validation basique
+        # Validation basique: requête vide
         if not query or not query.strip():
             return {"valid": False, "error": "Requête vide"}
-        
-        query_upper = query.upper().strip()
-        
-        # Vérifier les mots-clés SPARQL
+
+        query_stripped = query.strip()
+        query_upper = query_stripped.upper()
+
+        # Vérification rapide: présence d'un mot-clé SPARQL
         sparql_keywords = ["SELECT", "ASK", "CONSTRUCT", "DESCRIBE"]
         if not any(keyword in query_upper for keyword in sparql_keywords):
-            return {"valid": False, "error": "Type de requête SPARQL non reconnu"}
-        
-        return {"valid": True, "error": ""}
+            return {
+                "valid": False,
+                "error": "Type de requête SPARQL non reconnu (SELECT, ASK, CONSTRUCT ou DESCRIBE requis)"
+            }
+
+        # NOUVELLE VALIDATION: Parser syntaxique avec rdflib
+        try:
+            # Tenter de parser la requête avec rdflib
+            # Si le parsing réussit, la syntaxe est valide
+            prepareQuery(query_stripped)
+
+            # Succès: syntaxe SPARQL valide
+            return {"valid": True, "error": ""}
+
+        except ParseException as e:
+            # Erreur de parsing: syntaxe invalide
+            # Extraire un message d'erreur lisible
+            error_msg = str(e)
+
+            # Améliorer le message d'erreur pour l'utilisateur
+            if "Expected" in error_msg:
+                error_detail = "Structure de requête incorrecte"
+            elif "var" in error_msg.lower():
+                error_detail = "Variable SPARQL invalide (doit commencer par '?' ou '$')"
+            elif "WHERE" in error_msg:
+                error_detail = "Clause WHERE manquante ou mal formée"
+            else:
+                error_detail = error_msg.split('\n')[0]  # Première ligne de l'erreur
+
+            return {
+                "valid": False,
+                "error": f"Syntaxe SPARQL invalide: {error_detail}"
+            }
+
+        except Exception as e:
+            # Autre erreur inattendue
+            return {
+                "valid": False,
+                "error": f"Erreur lors de la validation: {str(e)}"
+            }
     
     def get_query_complexity_estimate(self, query: str) -> Dict[str, any]:
         """

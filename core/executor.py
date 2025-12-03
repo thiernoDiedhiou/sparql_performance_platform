@@ -1,9 +1,11 @@
 """
 Module d'exécution des requêtes SPARQL
+Version améliorée avec support des graphes nommés (Named Graphs)
 """
 
 from SPARQLWrapper import SPARQLWrapper, JSON
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+import re
 from config.settings import (
     QUERY_TIMEOUT,
     SECURITY_MAX_QUERY_LENGTH,
@@ -24,14 +26,83 @@ class QueryExecutor:
         """
         self.timeout = timeout
     
+    def wrap_query_with_graph(self, query: str, graph_uri: str) -> str:
+        """
+        Wrappe une requête SPARQL avec une clause GRAPH pour interroger un graphe nommé
+
+        Cette méthode est essentielle pour garantir des benchmarks équitables entre
+        Virtuoso et Fuseki, car ils gèrent différemment le graphe par défaut.
+
+        Args:
+            query: Requête SPARQL originale
+            graph_uri: URI du graphe nommé à interroger
+
+        Returns:
+            Requête modifiée avec clause GRAPH
+
+        Example:
+            >>> query = "SELECT ?s WHERE { ?s ?p ?o }"
+            >>> graph_uri = "http://example.org/dataset"
+            >>> wrapped = executor.wrap_query_with_graph(query, graph_uri)
+            >>> # Résultat: SELECT ?s WHERE { GRAPH <http://example.org/dataset> { ?s ?p ?o } }
+        """
+        # Si la requête contient déjà GRAPH, ne pas modifier
+        if "GRAPH" in query.upper():
+            log_message("Requête contient déjà GRAPH, pas de wrapping", "debug")
+            return query
+
+        # Trouver la clause WHERE avec regex
+        where_pattern = r'(WHERE\s*\{)'
+        match = re.search(where_pattern, query, re.IGNORECASE | re.DOTALL)
+
+        if not match:
+            # Pas de WHERE trouvé, requête probablement ASK/CONSTRUCT sans WHERE
+            log_message("Pas de clause WHERE trouvée, pas de wrapping", "debug")
+            return query
+
+        # Position de la clause WHERE
+        where_start = match.start()
+        where_end = match.end()
+
+        # Extraire les parties de la requête
+        before_where = query[:where_start]  # PREFIX, SELECT, etc.
+        where_keyword = query[where_start:where_end]  # "WHERE {"
+
+        # Trouver le contenu après WHERE { jusqu'au } final
+        after_where_start = where_end
+
+        # Compter les accolades pour trouver le } correspondant
+        brace_count = 1
+        i = after_where_start
+        while i < len(query) and brace_count > 0:
+            if query[i] == '{':
+                brace_count += 1
+            elif query[i] == '}':
+                brace_count -= 1
+            i += 1
+
+        # Extraire le contenu du WHERE et ce qui suit
+        where_content = query[after_where_start:i-1]  # Sans le } final
+        after_where_block = query[i-1:]  # Du } final jusqu'à la fin
+
+        # Reconstruire avec GRAPH
+        wrapped_query = f"""{before_where}{where_keyword}
+    GRAPH <{graph_uri}> {{
+        {where_content.strip()}
+    }}
+{after_where_block}"""
+
+        log_message(f"Requête wrappée avec GRAPH <{graph_uri}>", "debug")
+        return wrapped_query
+
     def setup_endpoint(self, endpoint_url: str, query: str) -> SPARQLWrapper:
         """
         Configure un endpoint SPARQL pour l'exécution d'une requête
-        
+
         Args:
             endpoint_url: URL de l'endpoint SPARQL
             query: Requête SPARQL à configurer
-            
+
         Returns:
             Instance configurée de SPARQLWrapper
         """
@@ -41,19 +112,35 @@ class QueryExecutor:
         sparql.setTimeout(self.timeout)
         return sparql
     
-    def execute_query(self, endpoint_url: str, query: str, skip_security_check: bool = False) -> Dict[str, Any]:
+    def execute_query(self, endpoint_url: str, query: str,
+                     graph_uri: Optional[str] = None,
+                     skip_security_check: bool = False) -> Dict[str, Any]:
         """
         Exécute une requête SPARQL sur un endpoint donné avec validation de sécurité
+
+        Version améliorée avec support des graphes nommés pour des benchmarks équitables.
 
         Args:
             endpoint_url: URL de l'endpoint SPARQL
             query: Requête SPARQL à exécuter
+            graph_uri: URI du graphe nommé (optionnel, wrappe automatiquement la requête)
             skip_security_check: Si True, ignore la validation de sécurité (pour opérations internes)
 
         Returns:
             Dictionnaire contenant les résultats de l'exécution
+
+        Note:
+            Si graph_uri est fourni, la requête sera automatiquement wrappée avec
+            GRAPH <graph_uri> { ... } pour garantir que les deux endpoints (Virtuoso et Fuseki)
+            interrogent exactement les mêmes données.
         """
         try:
+            # Wrapper avec GRAPH si graph_uri fourni
+            original_query = query
+            if graph_uri:
+                query = self.wrap_query_with_graph(query, graph_uri)
+                log_message(f"Requête wrappée avec graph_uri: {graph_uri[:50]}...", "debug")
+
             # Validation de sécurité (sauf si explicitement désactivée)
             if not skip_security_check:
                 security_check = self.validate_query_security(query)

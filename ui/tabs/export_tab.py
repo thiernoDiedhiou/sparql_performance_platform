@@ -4,6 +4,7 @@ Onglet d'exportation des résultats
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 import io
 import json
 from datetime import datetime
@@ -256,17 +257,17 @@ def render_json_export(results_df: pd.DataFrame, include_metadata: bool):
 def render_report_generation_section(results_df: pd.DataFrame):
     """
     Affiche la section de génération de rapports
-    
+
     Args:
         results_df: DataFrame des résultats
     """
     st.subheader("📝 Génération de rapports")
-    
+
     # Vérifier si les données sont suffisantes pour un rapport
     if not _validate_results_data(results_df):
         st.warning("⚠️ Données insuffisantes pour générer un rapport complet.")
         return
-    
+
     report_type = st.selectbox(
         "📋 Type de rapport",
         options=[
@@ -274,7 +275,8 @@ def render_report_generation_section(results_df: pd.DataFrame):
             "Résumé exécutif",
             "Rapport technique",
             "Comparaison des moteurs",
-            "Analyse de performance"
+            "Analyse de performance",
+            "Rapport avancé avec percentiles (P50/P95/P99)"  # ⭐ NOUVEAU
         ],
         help="Choisissez le type de rapport à générer"
     )
@@ -350,6 +352,260 @@ def render_report_generation_section(results_df: pd.DataFrame):
                     help="Télécharge un rapport d'erreur pour diagnostic"
                 )
 
+def generate_advanced_percentile_report(results_df: pd.DataFrame, include_recommendations: bool) -> str:
+    """
+    Génère un rapport avancé avec analyse des percentiles (P50/P95/P99)
+
+    Args:
+        results_df: DataFrame des résultats
+        include_recommendations: Inclure les recommandations
+
+    Returns:
+        Contenu du rapport en Markdown avec percentiles
+    """
+    try:
+        # En-tête du rapport
+        report = f"""# Rapport avancé de performance SPARQL - Analyse par percentiles
+
+**Date de génération:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+---
+
+## Introduction
+
+Ce rapport présente une **analyse statistique avancée** des performances SPARQL en utilisant les percentiles.
+Les percentiles permettent d'identifier les valeurs typiques (P50), les seuils de SLA (P95), et les valeurs aberrantes (P99).
+
+### Méthodologie
+
+- **P50 (Médiane):** Temps d'exécution typique - 50% des requêtes sont plus rapides
+- **P75:** 75% des requêtes sont plus rapides que cette valeur
+- **P90:** 90% des requêtes sont plus rapides que cette valeur
+- **P95 (SLA):** Seuil de qualité de service - 95% des requêtes respectent ce temps
+- **P99 (Outliers):** Détection des cas extrêmes - 99% des requêtes sont plus rapides
+
+### Données analysées
+
+- **Nombre d'exécutions:** {len(results_df)}
+- **Colonnes disponibles:** {', '.join(results_df.columns)}
+- **Période d'analyse:** {datetime.now().strftime('%Y-%m-%d')}
+
+---
+
+"""
+
+        # Validation des colonnes nécessaires
+        if 'execution_time' not in results_df.columns:
+            report += """
+## ⚠️ Données insuffisantes
+
+Les données d'exécution ne sont pas disponibles pour calculer les percentiles.
+
+**Colonnes requises manquantes:** execution_time
+"""
+            return report
+
+        # Calcul des percentiles globaux
+        exec_times = results_df['execution_time'].dropna()
+
+        if len(exec_times) == 0:
+            report += """
+## ⚠️ Aucune donnée d'exécution
+
+Aucune mesure de temps d'exécution n'est disponible.
+"""
+            return report
+
+        # Calcul des percentiles avec numpy
+        percentiles = {
+            'p50': float(np.percentile(exec_times, 50)),
+            'p75': float(np.percentile(exec_times, 75)),
+            'p90': float(np.percentile(exec_times, 90)),
+            'p95': float(np.percentile(exec_times, 95)),
+            'p99': float(np.percentile(exec_times, 99)),
+            'min': float(exec_times.min()),
+            'max': float(exec_times.max()),
+            'mean': float(exec_times.mean()),
+            'std': float(exec_times.std())
+        }
+
+        # Section: Percentiles globaux
+        report += f"""
+## 📊 Percentiles globaux - Temps d'exécution
+
+| Métrique | Temps (secondes) | Description |
+|----------|------------------|-------------|
+| **Minimum** | {percentiles['min']:.6f} | Temps le plus rapide observé |
+| **P50 (Médiane)** | {percentiles['p50']:.6f} | Performance typique |
+| **P75** | {percentiles['p75']:.6f} | 75% des requêtes plus rapides |
+| **P90** | {percentiles['p90']:.6f} | 90% des requêtes plus rapides |
+| **P95 (SLA)** | {percentiles['p95']:.6f} | Seuil de qualité de service |
+| **P99 (Outliers)** | {percentiles['p99']:.6f} | Détection des valeurs extrêmes |
+| **Maximum** | {percentiles['max']:.6f} | Temps le plus lent observé |
+| **Moyenne** | {percentiles['mean']:.6f} | Moyenne arithmétique |
+| **Écart-type** | {percentiles['std']:.6f} | Variation des performances |
+
+### Interprétation
+
+"""
+
+        # Ajout d'interprétations automatiques
+        if percentiles['p95'] < 1.0:
+            report += "- ✅ **Excellente performance:** 95% des requêtes s'exécutent en moins d'1 seconde\n"
+        elif percentiles['p95'] < 5.0:
+            report += "- ✅ **Bonne performance:** 95% des requêtes s'exécutent en moins de 5 secondes\n"
+        elif percentiles['p95'] < 10.0:
+            report += "- ⚠️ **Performance acceptable:** 95% des requêtes s'exécutent en moins de 10 secondes\n"
+        else:
+            report += "- ⚠️ **Performance à améliorer:** Le P95 dépasse 10 secondes\n"
+
+        if percentiles['p99'] > percentiles['p95'] * 3:
+            report += "- ⚠️ **Présence d'outliers significatifs:** Le P99 est 3× plus lent que le P95\n"
+
+        if percentiles['std'] > percentiles['mean']:
+            report += "- ⚠️ **Forte variabilité:** L'écart-type dépasse la moyenne (performances instables)\n"
+
+        report += "\n---\n\n"
+
+        # Section: Percentiles par requête (si disponible)
+        if 'query_name' in results_df.columns:
+            report += "## 📈 Percentiles par requête\n\n"
+
+            query_stats = []
+            for query_name in results_df['query_name'].unique():
+                query_data = results_df[results_df['query_name'] == query_name]['execution_time'].dropna()
+
+                if len(query_data) > 0:
+                    query_stats.append({
+                        'Requête': query_name,
+                        'P50': np.percentile(query_data, 50),
+                        'P95': np.percentile(query_data, 95),
+                        'P99': np.percentile(query_data, 99),
+                        'Moyenne': query_data.mean(),
+                        'Min': query_data.min(),
+                        'Max': query_data.max(),
+                        'Exécutions': len(query_data)
+                    })
+
+            if query_stats:
+                query_df = pd.DataFrame(query_stats)
+                query_df = query_df.sort_values('P95', ascending=False)
+
+                report += query_df.to_markdown(index=False, floatfmt=".6f")
+                report += "\n\n"
+
+                # Top 5 requêtes les plus lentes (P95)
+                report += "### 🐌 Top 5 requêtes les plus lentes (P95)\n\n"
+                top_slowest = query_df.head(5)
+                for idx, row in top_slowest.iterrows():
+                    report += f"{idx+1}. **{row['Requête']}** - P95: {row['P95']:.6f}s (Moyenne: {row['Moyenne']:.6f}s)\n"
+
+                report += "\n"
+
+                # Top 5 requêtes les plus rapides (P50)
+                report += "### ⚡ Top 5 requêtes les plus rapides (P50)\n\n"
+                top_fastest = query_df.sort_values('P50').head(5)
+                for idx, row in top_fastest.iterrows():
+                    report += f"{idx+1}. **{row['Requête']}** - P50: {row['P50']:.6f}s (Moyenne: {row['Moyenne']:.6f}s)\n"
+
+                report += "\n---\n\n"
+
+        # Section: Percentiles par moteur (si disponible)
+        if 'engine' in results_df.columns:
+            report += "## 🔧 Percentiles par moteur SPARQL\n\n"
+
+            engine_stats = []
+            for engine_name in results_df['engine'].unique():
+                engine_data = results_df[results_df['engine'] == engine_name]['execution_time'].dropna()
+
+                if len(engine_data) > 0:
+                    engine_stats.append({
+                        'Moteur': engine_name,
+                        'P50': np.percentile(engine_data, 50),
+                        'P95': np.percentile(engine_data, 95),
+                        'P99': np.percentile(engine_data, 99),
+                        'Moyenne': engine_data.mean(),
+                        'Min': engine_data.min(),
+                        'Max': engine_data.max(),
+                        'Exécutions': len(engine_data)
+                    })
+
+            if engine_stats:
+                engine_df = pd.DataFrame(engine_stats)
+                report += engine_df.to_markdown(index=False, floatfmt=".6f")
+                report += "\n\n"
+
+                # Comparaison des moteurs
+                report += "### Comparaison des performances\n\n"
+                best_p50 = engine_df.loc[engine_df['P50'].idxmin()]
+                best_p95 = engine_df.loc[engine_df['P95'].idxmin()]
+
+                report += f"- **Meilleur P50 (performance typique):** {best_p50['Moteur']} ({best_p50['P50']:.6f}s)\n"
+                report += f"- **Meilleur P95 (SLA):** {best_p95['Moteur']} ({best_p95['P95']:.6f}s)\n"
+
+                report += "\n---\n\n"
+
+        # Section: Recommandations
+        if include_recommendations:
+            report += """
+## 💡 Recommandations basées sur les percentiles
+
+### Optimisation des performances
+
+1. **Concentrez-vous sur le P95:** C'est le seuil de qualité de service
+   - Identifiez les requêtes avec P95 > 5 secondes
+   - Optimisez ces requêtes en priorité
+
+2. **Analysez le P99 pour les outliers:**
+   - Si P99 >> P95 → présence de valeurs aberrantes
+   - Vérifiez la stabilité du système lors de ces pics
+
+3. **Stabilité (écart-type):**
+   - Un écart-type élevé indique des performances variables
+   - Vérifiez la charge système et la configuration
+
+### Utilisation pour les SLA
+
+- **SLA "Excellente performance":** P95 < 1 seconde
+- **SLA "Bonne performance":** P95 < 5 secondes
+- **SLA "Performance acceptable":** P95 < 10 secondes
+
+### Métriques à surveiller
+
+- **P50:** Performance quotidienne typique
+- **P95:** Seuil pour définir vos SLA
+- **P99:** Détection précoce de problèmes de performance
+
+"""
+
+        # Pied de page
+        report += f"""
+---
+
+**Rapport avancé généré par la Plateforme d'évaluation SPARQL**
+*Développé dans le cadre d'un mémoire de Master 2 en Informatique - Génie Logiciel*
+
+*Généré le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
+"""
+
+        return report
+
+    except Exception as e:
+        # Rapport d'erreur en cas d'échec
+        return f"""# Erreur lors de la génération du rapport avancé
+
+**Erreur rencontrée:** {str(e)}
+
+**Type d'erreur:** {type(e).__name__}
+
+**Informations disponibles:**
+- Nombre d'enregistrements: {len(results_df) if results_df is not None else 0}
+- Colonnes: {', '.join(results_df.columns) if results_df is not None and not results_df.empty else 'Aucune'}
+
+---
+*Rapport d'erreur généré le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
+"""
+
 def generate_report_safe(results_df: pd.DataFrame, report_type: str, 
                         include_charts: bool, include_recommendations: bool) -> str:
     """
@@ -365,7 +621,11 @@ def generate_report_safe(results_df: pd.DataFrame, report_type: str,
         Contenu du rapport en Markdown
     """
     try:
-        # En-tête du rapport
+        # Si c'est un rapport avancé avec percentiles, utiliser une fonction dédiée
+        if report_type == "Rapport avancé avec percentiles (P50/P95/P99)":
+            return generate_advanced_percentile_report(results_df, include_recommendations)
+
+        # En-tête du rapport standard
         report = f"""# {report_type} - Performance SPARQL
 
 **Date de génération:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -373,7 +633,7 @@ def generate_report_safe(results_df: pd.DataFrame, report_type: str,
 ## Résumé exécutif
 
 """
-        
+
         # Informations de base sur les données
         report += f"""
 ### Données analysées

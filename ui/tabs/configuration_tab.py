@@ -256,18 +256,42 @@ LIMIT 10""",
 def execute_tests_with_validation(selected_queries: Dict[str, str], config: Dict[str, Any]):
     """
     Version mise à jour de execute_tests avec validation des datasets
-    
+
     Args:
         selected_queries: Dictionnaire des requêtes sélectionnées
         config: Configuration des tests
     """
     try:
-        # Initialisation du testeur
+        # Charger les graph URIs depuis les métadonnées pour des benchmarks équitables
+        import json
+        from pathlib import Path
+
+        metadata_file = Path("datasets_metadata.json")
+        virtuoso_graph_uri = None
+        fuseki_graph_uri = None
+
+        if metadata_file.exists():
+            with open(metadata_file, 'r', encoding='utf-8') as f:
+                metadata = json.load(f)
+
+                if "virtuoso" in metadata and "graph_uri" in metadata["virtuoso"]:
+                    virtuoso_graph_uri = metadata["virtuoso"]["graph_uri"]
+                    log_message(f"Graph URI Virtuoso chargé: {virtuoso_graph_uri}", "debug")
+
+                if "fuseki" in metadata and "graph_uri" in metadata["fuseki"]:
+                    fuseki_graph_uri = metadata["fuseki"]["graph_uri"]
+                    log_message(f"Graph URI Fuseki chargé: {fuseki_graph_uri}", "debug")
+        else:
+            log_message("Fichier datasets_metadata.json non trouvé, wrapping désactivé", "warning")
+
+        # Initialisation du testeur avec graph URIs pour benchmarks équitables
         tester = SPARQLPerformanceTester(
             config["virtuoso_endpoint"],
-            config["fuseki_endpoint"]
+            config["fuseki_endpoint"],
+            virtuoso_graph_uri=virtuoso_graph_uri,
+            fuseki_graph_uri=fuseki_graph_uri
         )
-        
+
         # NOUVELLE ÉTAPE: Validation des datasets
         st.subheader("Validation des datasets")
         
@@ -483,9 +507,14 @@ def execute_tests_with_validation(selected_queries: Dict[str, str], config: Dict
             """)
     
     finally:
-        # Nettoyage
-        progress_bar.empty()
-        status_text.empty()
+        # Nettoyage sécurisé
+        try:
+            if 'progress_bar' in locals():
+                progress_bar.empty()
+            if 'status_text' in locals():
+                status_text.empty()
+        except:
+            pass  # Ignorer les erreurs de nettoyage
 
 
 # ============================================================================

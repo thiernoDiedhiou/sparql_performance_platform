@@ -1,28 +1,40 @@
 """
 Classe principale pour gérer les tests de performance SPARQL
+Version améliorée avec support des graphes nommés pour benchmarks équitables
 """
 
 import pandas as pd
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from core.executor import QueryExecutor
 from core.metrics import MetricsCollector
 from utils.helpers import log_message
 
 class SPARQLPerformanceTester:
     """Classe principale pour effectuer les tests de performance SPARQL"""
-    
-    def __init__(self, virtuoso_endpoint: str, fuseki_endpoint: str):
+
+    def __init__(self, virtuoso_endpoint: str, fuseki_endpoint: str,
+                 virtuoso_graph_uri: Optional[str] = None,
+                 fuseki_graph_uri: Optional[str] = None):
         """
         Initialise le testeur de performance SPARQL
-        
+
         Args:
             virtuoso_endpoint: URL de l'endpoint Virtuoso
             fuseki_endpoint: URL de l'endpoint Jena Fuseki
+            virtuoso_graph_uri: URI du graphe nommé Virtuoso (optionnel)
+            fuseki_graph_uri: URI du graphe nommé Fuseki (optionnel)
+
+        Note:
+            Si les graph_uri sont fournis, toutes les requêtes seront automatiquement
+            wrappées avec GRAPH <uri> { ... } pour garantir des benchmarks équitables
+            entre Virtuoso et Fuseki.
         """
         self.virtuoso_endpoint = virtuoso_endpoint
         self.fuseki_endpoint = fuseki_endpoint
+        self.virtuoso_graph_uri = virtuoso_graph_uri
+        self.fuseki_graph_uri = fuseki_graph_uri
         self.results = {}
         self.current_test_results = []
         self.executor = QueryExecutor()
@@ -47,8 +59,15 @@ class SPARQLPerformanceTester:
         # Collecte des métriques de départ
         start_time = time.time()
 
-        # Exécution de la requête
-        query_result = self.executor.execute_query(endpoint_url, query)
+        # Déterminer le graph_uri à utiliser selon l'endpoint
+        graph_uri = None
+        if endpoint_url == self.virtuoso_endpoint:
+            graph_uri = self.virtuoso_graph_uri
+        elif endpoint_url == self.fuseki_endpoint:
+            graph_uri = self.fuseki_graph_uri
+
+        # Exécution de la requête avec graph_uri si disponible
+        query_result = self.executor.execute_query(endpoint_url, query, graph_uri=graph_uri)
 
         # Collecte des métriques de fin
         end_time = time.time()
