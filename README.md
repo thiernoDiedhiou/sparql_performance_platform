@@ -76,23 +76,10 @@ Une plateforme professionnelle d'évaluation comparative des performances des mo
 
 ---
 
-## Nouveautés v2.0
-
-### Priority 1 - Infrastructure critique
-
 #### Tests unitaires complets
 
 ```bash
-tests/
-├── test_executor.py          # 17 tests - Exécution de requêtes
-├── test_tester.py             # 12 tests - Tests de performance
-├── test_data_synchronizer.py  # 22 tests - Synchronisation de données
-├── test_queries.py            # 23 tests - Catalogues de requêtes
-├── test_helpers.py            # 28 tests - Fonctions utilitaires
-├── conftest.py                # Fixtures partagées
-└── pytest.ini                 # Configuration pytest
 
-Total: 103 tests | 96% pass rate | 52% coverage
 ```
 
 **Exécution :**
