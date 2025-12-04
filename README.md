@@ -32,7 +32,7 @@ Une plateforme professionnelle d'évaluation comparative des performances des mo
 - **Dashboard temps réel** avec barres de progression et ETA
 - Support multi-moteurs (Virtuoso, Jena Fuseki, et autres endpoints SPARQL)
 - Itérations d'échauffement pour des mesures précises
-- Gestion robuste des erreurs avec retry automatique
+- Gestion des erreurs avec retry automatique
 
 ### Métriques scientifiques avancées
 
