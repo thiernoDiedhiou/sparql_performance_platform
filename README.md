@@ -154,8 +154,6 @@ docker-compose down
 - Retry x3 avant échec
 - Démarrage séquentiel avec dépendances
 
-### Priority 2 - Fonctionnalités avancées
-
 #### Synchronisation par chunks
 
 ```python
