@@ -14,7 +14,6 @@ Une plateforme professionnelle d'évaluation comparative des performances des mo
 ## Table des matières
 
 - [Fonctionnalités principales](#-fonctionnalités-principales)
-- [Nouveautés v2.0](#-nouveautés-v20)
 - [Architecture](#-architecture)
 - [Installation rapide](#-installation-rapide)
 - [Utilisation](#-utilisation)
@@ -1036,7 +1035,6 @@ chore: Tâches de maintenance
 ```
 
 ---
-
 
 ## Licence
 
