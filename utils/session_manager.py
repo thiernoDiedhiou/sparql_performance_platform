@@ -437,25 +437,49 @@ def render_session_manager_ui():
                     f"📦 {session['session_name']} - {session['timestamp'][:19]}",
                     expanded=False
                 ):
-                    col1, col2, col3 = st.columns([2, 1, 1])
+                    col1, col2, col3 = st.columns([3, 1.5, 1.5])
 
                     with col1:
                         st.write(f"**ID:** `{session['session_id'][:30]}...`")
                         st.write(f"**Résultats:** {'✅ Oui' if session['has_results'] else '❌ Non'}")
 
                     with col2:
-                        if st.button("📥 Charger", key=f"load_{session['session_id']}"):
+                        if st.button("📥 Charger", key=f"load_{session['session_id']}", use_container_width=True):
                             loaded = manager.load_session(session['session_id'])
 
                             if loaded:
                                 # Restauration dans session_state
-                                st.session_state.update(loaded['config'])
-                                st.session_state['loaded_session_results'] = loaded['results']
-                                st.success("✅ Session chargée!")
+                                # Filtrer les clés qui correspondent à des widgets avant de les restaurer
+                                widget_key_patterns = ['clear_', 'load_', 'delete_', 'save_', 'export_', 'import_']
+                                skipped_keys = []
+
+                                for key, value in loaded['config'].items():
+                                    # Ignorer les clés de widgets
+                                    if any(key.startswith(pattern) for pattern in widget_key_patterns):
+                                        skipped_keys.append(key)
+                                        continue
+
+                                    # Tenter de restaurer les autres clés avec try-except pour plus de sécurité
+                                    try:
+                                        st.session_state[key] = value
+                                    except Exception as e:
+                                        # Ignorer les clés qui causent des conflits avec des widgets
+                                        if "cannot be modified after the widget" in str(e) or "cannot be set using" in str(e):
+                                            skipped_keys.append(key)
+                                        else:
+                                            # Re-lever les autres erreurs
+                                            raise
+
+                                # Restaurer les résultats dans la clé attendue par l'application
+                                if loaded['results'] is not None:
+                                    st.session_state['results_df'] = loaded['results']
+                                    st.session_state['loaded_session_results'] = loaded['results']
+
+                                st.success(f"✅ Session chargée! ({len(skipped_keys)} clés de widgets ignorées)")
                                 st.rerun()
 
                     with col3:
-                        if st.button("🗑️ Supprimer", key=f"delete_{session['session_id']}"):
+                        if st.button("🗑️ Supprimer", key=f"delete_{session['session_id']}", use_container_width=True):
                             if manager.delete_session(session['session_id']):
                                 st.success("✅ Session supprimée!")
                                 st.rerun()

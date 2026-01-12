@@ -137,7 +137,9 @@ def render_hero_status():
     results_df = st.session_state.get('results_df', None)
     last_session = st.session_state.get('last_session_timestamp', None)
 
-    if results_df is not None and not results_df.empty:
+    # Vérifier que results_df est bien un DataFrame
+    import pandas as pd
+    if results_df is not None and isinstance(results_df, pd.DataFrame) and not results_df.empty:
         # Calculer les métriques
         virtuoso_df = results_df[results_df['engine'] == 'Virtuoso']
         fuseki_df = results_df[results_df['engine'] == 'Jena Fuseki']
